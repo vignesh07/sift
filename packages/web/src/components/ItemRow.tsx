@@ -83,15 +83,19 @@ function formatRelative(iso: string): string {
 
 function getReasonLabel(item: Item): string | null {
   const reasons: string[] = JSON.parse(item.layer_reasons || '[]');
+  // Layer 1
   if (reasons.includes('review_requested') || reasons.includes('notification_review_requested')) return 'requested your review';
-  if (reasons.includes('mentioned')) return 'mentioned you in a comment';
   if (reasons.includes('assigned')) return 'assigned to you';
   if (reasons.includes('pr_on_owned_repo')) return 'opened a PR on your repo';
   if (reasons.includes('your_pr_changes_requested')) return 'changes requested';
   if (reasons.includes('your_open_pr')) return 'your PR';
+  // Layer 2
   if (reasons.includes('author_followed')) return 'you follow';
-  if (reasons.includes('starred_repo')) return 'starred repo';
+  if (reasons.includes('owned_repo_collaborator')) return 'maintainer';
   if (reasons.includes('contributor_repo')) return 'your repo';
+  // Layer 3
+  if (reasons.includes('mentioned')) return 'mentioned you';
+  if (reasons.includes('starred_repo')) return 'starred repo';
   if (reasons.includes('high_comments')) return `${item.comment_count} comments`;
   if (reasons.includes('high_reactions')) return `${item.reaction_count} reactions`;
   if (reasons.includes('many_participants')) return `${item.participant_count} participants`;

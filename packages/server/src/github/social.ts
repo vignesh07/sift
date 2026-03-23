@@ -1,3 +1,4 @@
+import type { Octokit } from '@octokit/rest';
 import type { graphql } from '@octokit/graphql';
 import { FOLLOWING_QUERY, STARRED_REPOS_QUERY, USER_REPOS_QUERY } from './queries.js';
 
@@ -57,4 +58,31 @@ export async function fetchUserRepos(gql: GraphQLFn): Promise<{ owner: string; n
   } while (cursor && pages < 5);
 
   return repos;
+}
+
+/** Fetch collaborators for a set of owned repos via REST API */
+export async function fetchRepoCollaborators(
+  octokit: Octokit,
+  repos: { owner: string; name: string }[],
+): Promise<{ owner: string; name: string; logins: string[] }[]> {
+  const results: { owner: string; name: string; logins: string[] }[] = [];
+
+  for (const repo of repos) {
+    try {
+      const { data } = await octokit.repos.listCollaborators({
+        owner: repo.owner,
+        repo: repo.name,
+        per_page: 100,
+      });
+      results.push({
+        owner: repo.owner,
+        name: repo.name,
+        logins: data.map(c => c.login),
+      });
+    } catch {
+      // Skip repos where we can't list collaborators (permissions)
+    }
+  }
+
+  return results;
 }

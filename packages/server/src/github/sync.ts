@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import type { Octokit } from '@octokit/rest';
 import type { graphql } from '@octokit/graphql';
-import { fetchFollowing, fetchStarredRepos, fetchUserRepos } from './social.js';
+import { fetchFollowing, fetchStarredRepos, fetchUserRepos, fetchRepoCollaborators } from './social.js';
 import { fetchNotifications } from './notifications.js';
 import { searchGitHub, buildSearchQueries } from './search.js';
 import type { SearchItem } from './search.js';
@@ -12,11 +12,13 @@ import {
   upsertStarredRepos,
   upsertUserRepos,
   upsertReviewRequests,
+  upsertRepoCollaborators,
   getSyncState,
   setSyncState,
   getFollowing,
   getStarredRepos,
   getUserRepos,
+  getRepoCollaborators,
 } from '../db/queries.js';
 import type { ItemRow } from '../db/queries.js';
 
@@ -64,6 +66,20 @@ export async function runSync(
         upsertFollowing(db, following);
         upsertStarredRepos(db, starred);
         upsertUserRepos(db, repos);
+
+        // Fetch collaborators for owned repos
+        const ownedRepos = repos.filter(r => r.is_owner);
+        if (ownedRepos.length > 0) {
+          try {
+            const collabs = await fetchRepoCollaborators(octokit, ownedRepos);
+            for (const c of collabs) {
+              upsertRepoCollaborators(db, c.owner, c.name, c.logins);
+            }
+          } catch (err) {
+            errors.push(`Collaborator sync failed: ${err}`);
+          }
+        }
+
         setSyncState(db, 'last_social_sync', new Date().toISOString());
         socialRefreshed = true;
       } catch (err) {
@@ -171,6 +187,7 @@ function buildContext(db: Database.Database, username: string): ClassificationCo
   const following = new Set(getFollowing(db));
   const starred = getStarredRepos(db);
   const repos = getUserRepos(db);
+  const collabs = getRepoCollaborators(db);
 
   return {
     username,
@@ -178,5 +195,6 @@ function buildContext(db: Database.Database, username: string): ClassificationCo
     starredRepos: new Set(starred.map(r => `${r.owner}/${r.name}`)),
     userRepos: new Set(repos.map(r => `${r.owner}/${r.name}`)),
     ownedRepos: new Set(repos.filter(r => r.is_owner).map(r => `${r.owner}/${r.name}`)),
+    ownedRepoCollaborators: new Set(collabs.map(c => c.login)),
   };
 }

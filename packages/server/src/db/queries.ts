@@ -223,6 +223,22 @@ export function getUserRepos(db: Database.Database): { owner: string; name: stri
     .map(r => ({ ...r, is_owner: r.is_owner === 1 }));
 }
 
+export function upsertRepoCollaborators(db: Database.Database, repoOwner: string, repoName: string, logins: string[]): void {
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM repo_collaborators WHERE repo_owner = @repoOwner AND repo_name = @repoName').run({ repoOwner, repoName });
+    const stmt = db.prepare('INSERT INTO repo_collaborators (repo_owner, repo_name, login) VALUES (@repoOwner, @repoName, @login)');
+    for (const login of logins) {
+      stmt.run({ repoOwner, repoName, login });
+    }
+  });
+  tx();
+}
+
+export function getRepoCollaborators(db: Database.Database): { repo: string; login: string }[] {
+  return (db.prepare('SELECT repo_owner, repo_name, login FROM repo_collaborators').all() as { repo_owner: string; repo_name: string; login: string }[])
+    .map(r => ({ repo: `${r.repo_owner}/${r.repo_name}`, login: r.login }));
+}
+
 export function upsertReviewRequests(db: Database.Database, itemId: string, reviewers: string[]): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM review_requests WHERE item_id = @itemId').run({ itemId });

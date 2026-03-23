@@ -3,10 +3,10 @@ import type { StatusResponse } from '../types';
 import ItemRow from './ItemRow';
 
 const LAYER_META: Record<number, { label: string; description: string; labelColor: string; countColor: string; descColor: string }> = {
-  1: { label: 'Needs You', description: 'Review requests, mentions, your repos', labelColor: '#C2553A', countColor: '#C2553A', descColor: '#9F9F97' },
-  2: { label: 'Your Circle', description: 'People you follow, maintainers of starred repos', labelColor: '#1B1B18', countColor: '#6B6B63', descColor: '#9F9F97' },
-  3: { label: 'Rising', description: 'Repeat contributors, unusual engagement', labelColor: '#9F9F97', countColor: '#B5B5AD', descColor: '#B5B5AD' },
-  4: { label: 'Everything Else', description: 'Filtered out bots, spam, and noise', labelColor: '#C8C8C0', countColor: '#D0D0C8', descColor: '#C8C8C0' },
+  1: { label: 'Needs You', description: 'Review requests, assignments, your repos', labelColor: '#C2553A', countColor: '#C2553A', descColor: '#9F9F97' },
+  2: { label: 'Your Circle', description: 'People you follow, maintainers of your repos', labelColor: '#1B1B18', countColor: '#6B6B63', descColor: '#9F9F97' },
+  3: { label: 'Interesting', description: 'Mentions, starred repos, high engagement', labelColor: '#9F9F97', countColor: '#B5B5AD', descColor: '#B5B5AD' },
+  4: { label: 'Everything Else', description: 'No special signals', labelColor: '#C8C8C0', countColor: '#D0D0C8', descColor: '#C8C8C0' },
 };
 
 interface FeedViewProps {

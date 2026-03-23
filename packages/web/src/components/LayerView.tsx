@@ -5,10 +5,10 @@ import TabBar from './TabBar';
 import ItemRow from './ItemRow';
 
 const LAYER_DESCRIPTIONS: Record<number, string> = {
-  1: 'Review requests, mentions, and activity on your repos',
-  2: 'People you follow, maintainers of starred repos',
-  3: 'Repeat contributors, unusual engagement',
-  4: 'Filtered out bots, spam, and noise',
+  1: 'Review requests, assignments, and activity on your repos',
+  2: 'People you follow, maintainers of your repos',
+  3: 'Mentions, starred repos, high engagement',
+  4: 'No special signals',
 };
 
 interface LayerViewProps {

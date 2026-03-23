@@ -68,6 +68,14 @@ export function applySchema(db: Database.Database): void {
       PRIMARY KEY (owner, name)
     );
 
+    CREATE TABLE IF NOT EXISTS repo_collaborators (
+      repo_owner TEXT NOT NULL,
+      repo_name TEXT NOT NULL,
+      login TEXT NOT NULL,
+      synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (repo_owner, repo_name, login)
+    );
+
     CREATE TABLE IF NOT EXISTS review_requests (
       item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
       reviewer_login TEXT NOT NULL,

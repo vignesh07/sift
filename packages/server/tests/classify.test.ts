@@ -37,6 +37,7 @@ function makeCtx(overrides: Partial<ClassificationContext> = {}): Classification
     starredRepos: new Set<string>(),
     userRepos: new Set<string>(),
     ownedRepos: new Set<string>(),
+    ownedRepoCollaborators: new Set<string>(),
     ...overrides,
   };
 }
@@ -55,13 +56,6 @@ describe('classify', () => {
       const result = classify(item, makeCtx());
       expect(result.layer).toBe(1);
       expect(result.reasons).toContain('notification_review_requested');
-    });
-
-    it('classifies @mention', () => {
-      const item = makeItem({ notification_reason: 'mention' });
-      const result = classify(item, makeCtx());
-      expect(result.layer).toBe(1);
-      expect(result.reasons).toContain('mentioned');
     });
 
     it('classifies assigned', () => {
@@ -111,6 +105,12 @@ describe('classify', () => {
       expect(result.reasons).toContain('your_pr_changes_requested');
       expect(result.reasons).toContain('your_open_pr');
     });
+
+    it('does NOT classify mentions as Layer 1', () => {
+      const item = makeItem({ notification_reason: 'mention' });
+      const result = classify(item, makeCtx());
+      expect(result.layer).not.toBe(1);
+    });
   });
 
   describe('Layer 2 — Your Circle', () => {
@@ -122,12 +122,19 @@ describe('classify', () => {
       expect(result.reasons).toContain('author_followed');
     });
 
-    it('classifies starred repo', () => {
-      const item = makeItem({ repo_owner: 'org', repo_name: 'repo' });
-      const ctx = makeCtx({ starredRepos: new Set(['org/repo']) });
+    it('classifies collaborator on owned repo', () => {
+      const item = makeItem({ author_login: 'bob' });
+      const ctx = makeCtx({ ownedRepoCollaborators: new Set(['bob']) });
       const result = classify(item, ctx);
       expect(result.layer).toBe(2);
-      expect(result.reasons).toContain('starred_repo');
+      expect(result.reasons).toContain('owned_repo_collaborator');
+    });
+
+    it('does NOT classify yourself as collaborator', () => {
+      const item = makeItem({ author_login: 'me' });
+      const ctx = makeCtx({ ownedRepoCollaborators: new Set(['me']) });
+      const result = classify(item, ctx);
+      expect(result.reasons).not.toContain('owned_repo_collaborator');
     });
 
     it('classifies contributor repo', () => {
@@ -138,21 +145,17 @@ describe('classify', () => {
       expect(result.reasons).toContain('contributor_repo');
     });
 
-    it('does NOT classify owned repo as contributor repo (Layer 1 takes priority)', () => {
-      const item = makeItem({ type: 'pr', repo_owner: 'me', repo_name: 'repo', author_login: 'bob' });
-      const ctx = makeCtx({
-        userRepos: new Set(['me/repo']),
-        ownedRepos: new Set(['me/repo']),
-      });
+    it('does NOT classify starred repos as Layer 2', () => {
+      const item = makeItem({ repo_owner: 'org', repo_name: 'repo' });
+      const ctx = makeCtx({ starredRepos: new Set(['org/repo']) });
       const result = classify(item, ctx);
-      // Should be Layer 1 because it's a PR on owned repo
-      expect(result.layer).toBe(1);
+      expect(result.layer).not.toBe(2);
     });
 
     it('Layer 1 trumps Layer 2', () => {
       const item = makeItem({
         author_login: 'alice',
-        notification_reason: 'mention',
+        notification_reason: 'assign',
       });
       const ctx = makeCtx({ following: new Set(['alice']) });
       const result = classify(item, ctx);
@@ -160,7 +163,22 @@ describe('classify', () => {
     });
   });
 
-  describe('Layer 3 — Rising', () => {
+  describe('Layer 3 — Interesting', () => {
+    it('classifies mentions as Layer 3', () => {
+      const item = makeItem({ notification_reason: 'mention' });
+      const result = classify(item, makeCtx());
+      expect(result.layer).toBe(3);
+      expect(result.reasons).toContain('mentioned');
+    });
+
+    it('classifies starred repos as Layer 3', () => {
+      const item = makeItem({ repo_owner: 'org', repo_name: 'repo' });
+      const ctx = makeCtx({ starredRepos: new Set(['org/repo']) });
+      const result = classify(item, ctx);
+      expect(result.layer).toBe(3);
+      expect(result.reasons).toContain('starred_repo');
+    });
+
     it('classifies high comment count', () => {
       const item = makeItem({ comment_count: 15 });
       const result = classify(item, makeCtx());
@@ -186,6 +204,16 @@ describe('classify', () => {
       const item = makeItem({ comment_count: 9, reaction_count: 9, participant_count: 4 });
       const result = classify(item, makeCtx());
       expect(result.layer).toBe(4);
+    });
+
+    it('Layer 2 trumps Layer 3 (followed author on starred repo)', () => {
+      const item = makeItem({ author_login: 'alice', repo_owner: 'org', repo_name: 'repo' });
+      const ctx = makeCtx({
+        following: new Set(['alice']),
+        starredRepos: new Set(['org/repo']),
+      });
+      const result = classify(item, ctx);
+      expect(result.layer).toBe(2);
     });
   });
 
@@ -222,15 +250,13 @@ describe('classifyBatch', () => {
 
   it('does NOT bump prolific authors who already have a better layer', () => {
     const items = [
-      makeItem({ id: 'n1', author_login: 'prolific', notification_reason: 'mention' }),
+      makeItem({ id: 'n1', author_login: 'prolific', notification_reason: 'assign' }),
       makeItem({ id: 'n2', author_login: 'prolific' }),
       makeItem({ id: 'n3', author_login: 'prolific' }),
     ];
     const results = classifyBatch(items, makeCtx());
 
-    // The mentioned one should stay Layer 1
     expect(results.get('n1')!.layer).toBe(1);
-    // Others should be bumped to Layer 3
     expect(results.get('n2')!.layer).toBe(3);
     expect(results.get('n3')!.layer).toBe(3);
   });
@@ -243,7 +269,6 @@ describe('classifyBatch', () => {
     ];
     const results = classifyBatch(items, makeCtx());
 
-    // Alice has 2 items (below threshold), no bump
     expect(results.get('n1')!.layer).toBe(4);
     expect(results.get('n2')!.layer).toBe(4);
     expect(results.get('n3')!.layer).toBe(4);

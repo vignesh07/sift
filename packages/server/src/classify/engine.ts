@@ -3,9 +3,10 @@ import type { SearchItem } from '../github/search.js';
 export interface ClassificationContext {
   username: string;
   following: Set<string>;
-  starredRepos: Set<string>; // "owner/name" format
-  userRepos: Set<string>;    // "owner/name" format
-  ownedRepos: Set<string>;   // "owner/name" format — repos user is admin of
+  starredRepos: Set<string>;       // "owner/name" format
+  userRepos: Set<string>;          // "owner/name" format — repos user contributes to
+  ownedRepos: Set<string>;         // "owner/name" format — repos user is admin of
+  ownedRepoCollaborators: Set<string>; // logins who are collaborators on owned repos
 }
 
 export interface ClassificationResult {
@@ -17,8 +18,23 @@ export interface ClassificationResult {
  * Classify an item into a layer (1-4) based on signal priority.
  *
  * Layer 1 — Needs You: direct action required from the user
- * Layer 2 — Your Circle: people/repos you care about
- * Layer 3 — Rising: high engagement signals
+ *   - Review requested for you
+ *   - Assigned to you
+ *   - PRs on repos you own (from others)
+ *   - Your PRs with changes requested
+ *   - Your open PRs
+ *
+ * Layer 2 — Your Circle: people you deliberately track
+ *   - Author is someone you follow
+ *   - Author is a collaborator on a repo you own
+ *   - On a repo you contribute to
+ *
+ * Layer 3 — Interesting: worth a look
+ *   - @mentions
+ *   - On a starred repo
+ *   - High engagement (comments, reactions, participants)
+ *   - Prolific author in batch (applied in classifyBatch)
+ *
  * Layer 4 — Everything Else
  */
 export function classify(
@@ -28,34 +44,24 @@ export function classify(
   const reasons: string[] = [];
   const repoKey = `${item.repo_owner}/${item.repo_name}`;
 
-  // --- Layer 1 checks ---
+  // --- Layer 1: Needs You ---
 
-  // Review requested for you
   if (item.requested_reviewers.includes(ctx.username)) {
     reasons.push('review_requested');
   }
 
-  // Notification reason is review_requested
   if (item.notification_reason === 'review_requested') {
     reasons.push('notification_review_requested');
   }
 
-  // @mention
-  if (item.notification_reason === 'mention') {
-    reasons.push('mentioned');
-  }
-
-  // Assigned to you
   if (item.notification_reason === 'assign') {
     reasons.push('assigned');
   }
 
-  // PR on a repo you own
   if (item.type === 'pr' && ctx.ownedRepos.has(repoKey) && item.author_login !== ctx.username) {
     reasons.push('pr_on_owned_repo');
   }
 
-  // Your PR with changes requested
   if (
     item.type === 'pr' &&
     item.author_login === ctx.username &&
@@ -64,7 +70,6 @@ export function classify(
     reasons.push('your_pr_changes_requested');
   }
 
-  // Your open PR (needs your attention)
   if (item.type === 'pr' && item.author_login === ctx.username && item.state === 'open') {
     reasons.push('your_open_pr');
   }
@@ -73,19 +78,16 @@ export function classify(
     return { layer: 1, reasons };
   }
 
-  // --- Layer 2 checks ---
+  // --- Layer 2: Your Circle ---
 
-  // Author is someone you follow
   if (ctx.following.has(item.author_login)) {
     reasons.push('author_followed');
   }
 
-  // On a starred repo
-  if (ctx.starredRepos.has(repoKey)) {
-    reasons.push('starred_repo');
+  if (ctx.ownedRepoCollaborators.has(item.author_login) && item.author_login !== ctx.username) {
+    reasons.push('owned_repo_collaborator');
   }
 
-  // On a repo you contribute to (but don't own)
   if (ctx.userRepos.has(repoKey) && !ctx.ownedRepos.has(repoKey)) {
     reasons.push('contributor_repo');
   }
@@ -94,7 +96,15 @@ export function classify(
     return { layer: 2, reasons };
   }
 
-  // --- Layer 3 checks ---
+  // --- Layer 3: Interesting ---
+
+  if (item.notification_reason === 'mention') {
+    reasons.push('mentioned');
+  }
+
+  if (ctx.starredRepos.has(repoKey)) {
+    reasons.push('starred_repo');
+  }
 
   if (item.comment_count >= 10) {
     reasons.push('high_comments');
@@ -124,7 +134,6 @@ export function classifyBatch(
   items: (SearchItem & { notification_reason?: string | null })[],
   ctx: ClassificationContext,
 ): Map<string, ClassificationResult> {
-  // Count items per author for "prolific author" heuristic
   const authorCounts = new Map<string, number>();
   for (const item of items) {
     authorCounts.set(item.author_login, (authorCounts.get(item.author_login) ?? 0) + 1);
@@ -135,8 +144,7 @@ export function classifyBatch(
   for (const item of items) {
     let result = classify(item, ctx);
 
-    // Prolific author: if an author has 3+ items in this batch and the item
-    // was classified as Layer 4, bump to Layer 3
+    // Prolific author: 3+ items in batch and currently Layer 4 → bump to Layer 3
     if (result.layer === 4 && (authorCounts.get(item.author_login) ?? 0) >= 3) {
       result = { layer: 3, reasons: ['prolific_author'] };
     }
