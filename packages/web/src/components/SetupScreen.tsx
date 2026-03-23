@@ -24,41 +24,72 @@ export default function SetupScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F8F7F4' }}>
-      <div className="w-full max-w-md px-6">
-        <div className="mb-10">
-          <h1 className="text-3xl font-bold tracking-tight" style={{ color: '#1B1B18', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F7F4' }}>
+      <div style={{ width: '100%', maxWidth: 400, padding: '0 24px' }}>
+        <div style={{ marginBottom: 48 }}>
+          <h1 style={{
+            fontFamily: '"Instrument Serif", serif',
+            fontSize: 36,
+            fontStyle: 'italic',
+            letterSpacing: '-0.02em',
+            color: '#1B1B18',
+            margin: 0,
+          }}>
             Sift
           </h1>
-          <p className="mt-2 text-sm" style={{ color: '#6B6B63' }}>
+          <p style={{
+            fontFamily: '"Inter", system-ui, sans-serif',
+            fontSize: 13,
+            lineHeight: '18px',
+            color: '#9F9F97',
+            marginTop: 8,
+          }}>
             Your GitHub inbox, organized by signal.
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <label className="block text-xs font-medium uppercase tracking-wider mb-2" style={{ color: '#6B6B63' }}>
-            GitHub Personal Access Token
+          <label style={{
+            display: 'block',
+            fontFamily: '"Geist Mono", monospace',
+            fontSize: 11,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase' as const,
+            color: '#9F9F97',
+            marginBottom: 8,
+          }}>
+            Personal Access Token
           </label>
           <input
             type="password"
             value={token}
             onChange={(e) => setToken(e.target.value)}
             placeholder="ghp_..."
-            className="w-full px-3 py-2.5 rounded-lg border text-sm outline-none transition-colors"
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderColor: '#E5E4E0',
-              color: '#1B1B18',
-              fontFamily: '"Geist Mono", ui-monospace, monospace',
-            }}
             autoFocus
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              borderRadius: 8,
+              border: '1px solid #E5E4E0',
+              backgroundColor: '#FFFFFF',
+              fontFamily: '"Geist Mono", monospace',
+              fontSize: 13,
+              color: '#1B1B18',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
           />
-          <p className="mt-2 text-xs" style={{ color: '#9F9F97' }}>
-            Required scopes: <code className="font-medium">notifications</code>, <code className="font-medium">read:user</code>, <code className="font-medium">repo</code>
+          <p style={{
+            fontFamily: '"Inter", system-ui, sans-serif',
+            fontSize: 11,
+            color: '#B5B5AD',
+            marginTop: 8,
+          }}>
+            Required scopes: notifications, read:user, repo
           </p>
 
           {error && (
-            <p className="mt-3 text-sm font-medium" style={{ color: '#C2553A' }}>
+            <p style={{ fontFamily: '"Inter", system-ui, sans-serif', fontSize: 12, fontWeight: 500, color: '#C2553A', marginTop: 12 }}>
               {error}
             </p>
           )}
@@ -66,8 +97,20 @@ export default function SetupScreen() {
           <button
             type="submit"
             disabled={loading || !token.trim()}
-            className="mt-5 w-full py-2.5 rounded-lg text-sm font-medium transition-opacity disabled:opacity-40"
-            style={{ backgroundColor: '#1B1B18', color: '#F8F7F4' }}
+            style={{
+              marginTop: 20,
+              width: '100%',
+              padding: '10px 0',
+              borderRadius: 8,
+              border: 'none',
+              backgroundColor: '#1B1B18',
+              color: '#F8F7F4',
+              fontFamily: '"Inter", system-ui, sans-serif',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: loading || !token.trim() ? 'default' : 'pointer',
+              opacity: loading || !token.trim() ? 0.4 : 1,
+            }}
           >
             {loading ? 'Validating...' : 'Connect'}
           </button>

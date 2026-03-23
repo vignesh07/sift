@@ -4,48 +4,66 @@ interface TabBarProps {
   counts: Record<number, number>;
 }
 
-const LAYER_NAMES: Record<number, string> = {
-  1: 'Needs You',
-  2: 'Your Circle',
-  3: 'Rising',
-  4: 'Everything',
-};
+const TABS = [
+  { layer: 1, label: 'Needs You', activeColor: '#C2553A', inactiveColor: '#6B6B63', badgeBg: 'rgba(194,85,58,0.08)', badgeColor: '#C2553A' },
+  { layer: 2, label: 'Your Circle', activeColor: '#1B1B18', inactiveColor: '#6B6B63', badgeBg: 'rgba(27,27,24,0.04)', badgeColor: '#9F9F97' },
+  { layer: 3, label: 'Rising', activeColor: '#1B1B18', inactiveColor: '#9F9F97', badgeBg: 'rgba(27,27,24,0.03)', badgeColor: '#B5B5AD' },
+  { layer: 4, label: 'Everything Else', activeColor: '#1B1B18', inactiveColor: '#C8C8C0', badgeBg: 'rgba(27,27,24,0.02)', badgeColor: '#D0D0C8' },
+];
 
 export default function TabBar({ activeLayer, onLayerChange, counts }: TabBarProps) {
   return (
     <div
-      className="flex border-b px-5"
-      style={{ borderColor: '#E5E4E0' }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        paddingInline: 80,
+        borderBottom: '1px solid rgba(27,27,24,0.06)',
+      }}
     >
-      {[1, 2, 3, 4].map((layer) => {
+      {TABS.map(({ layer, label, activeColor, inactiveColor, badgeBg, badgeColor }) => {
         const active = activeLayer === layer;
         return (
           <button
             key={layer}
             onClick={() => onLayerChange(layer)}
-            className="relative flex items-center gap-2 px-4 py-3 text-xs font-medium transition-colors"
             style={{
-              color: active ? '#1B1B18' : '#9F9F97',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              paddingTop: 16,
+              paddingBottom: 14,
+              paddingLeft: 24,
+              paddingRight: 24,
+              border: 'none',
+              borderBottom: active
+                ? `2px solid ${layer === 1 ? '#C2553A' : '#1B1B18'}`
+                : '2px solid transparent',
+              background: 'none',
+              cursor: 'pointer',
+              fontFamily: '"Inter", system-ui, sans-serif',
+              fontSize: 13,
+              fontWeight: active ? 600 : 500,
+              lineHeight: '16px',
+              color: active ? activeColor : inactiveColor,
             }}
           >
-            <span>{LAYER_NAMES[layer]}</span>
+            {label}
             {counts[layer] > 0 && (
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums"
-                style={{
-                  backgroundColor: layer === 1 && active ? '#C2553A' : '#F0EFEB',
-                  color: layer === 1 && active ? '#FFFFFF' : '#6B6B63',
-                  fontFamily: '"Geist Mono", ui-monospace, monospace',
-                }}
-              >
+              <span style={{
+                display: 'inline-block',
+                paddingBlock: 1,
+                paddingInline: 7,
+                borderRadius: 10,
+                backgroundColor: active && layer === 1 ? 'rgba(194,85,58,0.08)' : badgeBg,
+                fontFamily: '"Geist Mono", monospace',
+                fontSize: 11,
+                fontWeight: active && layer === 1 ? 600 : 500,
+                lineHeight: '14px',
+                color: active && layer === 1 ? '#C2553A' : badgeColor,
+              }}>
                 {counts[layer]}
               </span>
-            )}
-            {active && (
-              <div
-                className="absolute bottom-0 left-4 right-4 h-0.5 rounded-full"
-                style={{ backgroundColor: layer === 1 ? '#C2553A' : '#1B1B18' }}
-              />
             )}
           </button>
         );

@@ -8,13 +8,14 @@ import SearchResults from './components/SearchResults';
 
 export default function App() {
   const { data: status, isLoading } = useStatus();
-  const [view, setView] = useState<'tabs' | 'feed'>('tabs');
+  const [view, setView] = useState<'tabs' | 'feed'>('feed');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
 
   if (isLoading || !status) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#F8F7F4' }}>
-        <span className="text-sm" style={{ color: '#9F9F97' }}>Loading...</span>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F7F4' }}>
+        <span style={{ fontFamily: '"Inter", system-ui, sans-serif', fontSize: 13, color: '#9F9F97' }}>Loading...</span>
       </div>
     );
   }
@@ -26,13 +27,15 @@ export default function App() {
   const showSearch = searchQuery.length >= 2;
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#F8F7F4' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#F8F7F4' }}>
       <Header
         status={status}
         view={view}
         onViewChange={setView}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        searchOpen={searchOpen}
+        onSearchOpenChange={setSearchOpen}
       />
 
       {showSearch ? (
@@ -40,7 +43,7 @@ export default function App() {
       ) : view === 'tabs' ? (
         <LayerView status={status} />
       ) : (
-        <FeedView />
+        <FeedView status={status} />
       )}
     </div>
   );

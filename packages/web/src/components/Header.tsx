@@ -2,48 +2,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { triggerSync } from '../api';
 import type { StatusResponse } from '../types';
 
-function SyncIndicator({ status }: { status: StatusResponse }) {
-  const queryClient = useQueryClient();
-  const sync = useMutation({
-    mutationFn: triggerSync,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['items'] });
-      queryClient.invalidateQueries({ queryKey: ['feed'] });
-      queryClient.invalidateQueries({ queryKey: ['status'] });
-    },
-  });
-
-  const lastSync = status.lastSync
-    ? formatRelative(status.lastSync)
-    : 'never';
-
-  return (
-    <button
-      onClick={() => sync.mutate()}
-      disabled={status.syncInProgress || sync.isPending}
-      className="flex items-center gap-1.5 text-xs transition-opacity disabled:opacity-50"
-      style={{ color: '#6B6B63' }}
-      title={`Last sync: ${lastSync}`}
-    >
-      <svg
-        className={status.syncInProgress || sync.isPending ? 'animate-spin' : ''}
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-        <path d="M21 3v5h-5" />
-      </svg>
-      <span>{lastSync}</span>
-    </button>
-  );
-}
-
 function formatRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60_000);
@@ -60,79 +18,205 @@ interface HeaderProps {
   onViewChange: (v: 'tabs' | 'feed') => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  searchOpen: boolean;
+  onSearchOpenChange: (open: boolean) => void;
 }
 
-export default function Header({ status, view, onViewChange, searchQuery, onSearchChange }: HeaderProps) {
+export default function Header({ status, view, onViewChange, searchQuery, onSearchChange, searchOpen, onSearchOpenChange }: HeaderProps) {
+  const queryClient = useQueryClient();
+  const sync = useMutation({
+    mutationFn: triggerSync,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
+      queryClient.invalidateQueries({ queryKey: ['status'] });
+    },
+  });
+
+  const syncing = status.syncInProgress || sync.isPending;
+  const lastSync = status.lastSync ? formatRelative(status.lastSync) : 'never';
+
   return (
     <header
-      className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b"
-      style={{ backgroundColor: '#F8F7F4', borderColor: '#E5E4E0' }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingLeft: 80,
+        paddingRight: 80,
+        paddingTop: 32,
+        paddingBottom: 28,
+        borderBottom: '1px solid rgba(27,27,24,0.06)',
+      }}
     >
-      <div className="flex items-center gap-5">
-        <h1
-          className="text-lg font-bold tracking-tight"
-          style={{ color: '#1B1B18', fontFamily: 'Inter, system-ui, sans-serif' }}
+      {/* Left: Logo + sync status */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+        <button
+          onClick={() => sync.mutate()}
+          disabled={syncing}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: syncing ? 'default' : 'pointer',
+            fontFamily: '"Instrument Serif", serif',
+            fontSize: 28,
+            fontStyle: 'italic',
+            letterSpacing: '-0.02em',
+            lineHeight: '34px',
+            color: '#1B1B18',
+          }}
+          title="Click to sync"
         >
           Sift
-        </h1>
+        </button>
+        <span
+          style={{
+            fontFamily: '"Geist Mono", monospace',
+            fontSize: 11,
+            letterSpacing: '0.05em',
+            lineHeight: '14px',
+            textTransform: 'uppercase' as const,
+            color: '#9F9F97',
+          }}
+        >
+          {syncing ? 'Syncing...' : `Synced ${lastSync}`}
+        </span>
+      </div>
 
+      {/* Right: View toggle + search + user */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
         {/* View toggle */}
-        <div className="flex rounded-md overflow-hidden border" style={{ borderColor: '#E5E4E0' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            backgroundColor: 'rgba(27,27,24,0.04)',
+            borderRadius: 8,
+            padding: 3,
+          }}
+        >
           <button
             onClick={() => onViewChange('tabs')}
-            className="px-3 py-1 text-xs font-medium transition-colors"
             style={{
-              backgroundColor: view === 'tabs' ? '#1B1B18' : 'transparent',
-              color: view === 'tabs' ? '#F8F7F4' : '#6B6B63',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '5px 12px',
+              borderRadius: 6,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: view === 'tabs' ? '#FFFFFF' : 'transparent',
+              fontFamily: '"Inter", system-ui, sans-serif',
+              fontSize: 12,
+              fontWeight: 500,
+              lineHeight: '16px',
+              color: view === 'tabs' ? '#1B1B18' : '#9F9F97',
             }}
           >
-            Layers
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={view === 'tabs' ? '#1B1B18' : '#9F9F97'} strokeWidth="2.5" strokeLinecap="round">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            Tabs
           </button>
           <button
             onClick={() => onViewChange('feed')}
-            className="px-3 py-1 text-xs font-medium transition-colors"
             style={{
-              backgroundColor: view === 'feed' ? '#1B1B18' : 'transparent',
-              color: view === 'feed' ? '#F8F7F4' : '#6B6B63',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '5px 12px',
+              borderRadius: 6,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: view === 'feed' ? '#FFFFFF' : 'transparent',
+              fontFamily: '"Inter", system-ui, sans-serif',
+              fontSize: 12,
+              fontWeight: 500,
+              lineHeight: '16px',
+              color: view === 'feed' ? '#1B1B18' : '#9F9F97',
             }}
           >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={view === 'feed' ? '#1B1B18' : '#9F9F97'} strokeWidth="2.5" strokeLinecap="round">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
             Feed
           </button>
         </div>
-      </div>
 
-      <div className="flex items-center gap-4">
         {/* Search */}
-        <div className="relative">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search..."
-            className="w-52 px-3 py-1.5 rounded-md border text-xs outline-none transition-colors focus:border-gray-400"
+        {searchOpen ? (
+          <div
             style={{
-              backgroundColor: '#FFFFFF',
-              borderColor: '#E5E4E0',
-              color: '#1B1B18',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              backgroundColor: 'rgba(27,27,24,0.03)',
+              borderRadius: 8,
+              padding: '8px 16px',
             }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => onSearchChange('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs"
-              style={{ color: '#9F9F97' }}
-            >
-              &times;
-            </button>
-          )}
-        </div>
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9F9F97" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search across all layers..."
+              autoFocus
+              onBlur={() => { if (!searchQuery) onSearchOpenChange(false); }}
+              onKeyDown={(e) => { if (e.key === 'Escape') { onSearchChange(''); onSearchOpenChange(false); } }}
+              style={{
+                border: 'none',
+                background: 'none',
+                outline: 'none',
+                fontFamily: '"Inter", system-ui, sans-serif',
+                fontSize: 13,
+                lineHeight: '16px',
+                color: '#1B1B18',
+                width: 200,
+              }}
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => onSearchOpenChange(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              backgroundColor: 'rgba(27,27,24,0.03)',
+              borderRadius: 8,
+              padding: '8px 16px',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9F9F97" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span style={{ fontFamily: '"Inter", system-ui, sans-serif', fontSize: 13, lineHeight: '16px', color: '#9F9F97' }}>
+              Search...
+            </span>
+          </button>
+        )}
 
-        <SyncIndicator status={status} />
-
+        {/* User */}
         {status.user && (
-          <span className="text-xs" style={{ color: '#9F9F97', fontFamily: '"Geist Mono", ui-monospace, monospace' }}>
-            {status.user}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#E8E7E3', flexShrink: 0 }} />
+            <span style={{ fontFamily: '"Inter", system-ui, sans-serif', fontSize: 13, fontWeight: 500, lineHeight: '16px', color: '#6B6B63' }}>
+              {status.user}
+            </span>
+          </div>
         )}
       </div>
     </header>

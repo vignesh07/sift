@@ -10,32 +10,35 @@ export default function SearchResults({ query }: SearchResultsProps) {
 
   if (query.length < 2) return null;
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <span className="text-sm" style={{ color: '#9F9F97' }}>Searching...</span>
-      </div>
-    );
-  }
-
-  if (!data?.items.length) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <span className="text-sm" style={{ color: '#9F9F97' }}>
-          No results for "{query}"
-        </span>
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <div className="px-5 py-2 text-xs" style={{ color: '#9F9F97', borderBottom: '1px solid #F0EFEB' }}>
-        {data.total} result{data.total === 1 ? '' : 's'}
-      </div>
-      {data.items.map((item) => (
-        <ItemRow key={item.id} item={item} showLayer />
-      ))}
+    <div style={{ padding: '0 80px' }}>
+      {isLoading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', paddingBlock: 60 }}>
+          <span style={{ fontFamily: '"Inter", system-ui, sans-serif', fontSize: 13, color: '#9F9F97' }}>Searching...</span>
+        </div>
+      ) : !data?.items.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBlock: 60 }}>
+          <span style={{ fontFamily: '"Instrument Serif", serif', fontStyle: 'italic', fontSize: 20, color: '#C8C8C0' }}>
+            Nothing found.
+          </span>
+          <span style={{ fontFamily: '"Inter", system-ui, sans-serif', fontSize: 12, color: '#C8C8C0', marginTop: 8 }}>
+            No results for "{query}"
+          </span>
+        </div>
+      ) : (
+        <>
+          <div style={{ paddingTop: 24, paddingBottom: 16 }}>
+            <span style={{ fontFamily: '"Inter", system-ui, sans-serif', fontSize: 12, color: '#9F9F97' }}>
+              {data.total} result{data.total === 1 ? '' : 's'} for "{query}"
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {data.items.map((item) => (
+              <ItemRow key={item.id} item={item} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

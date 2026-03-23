@@ -1,32 +1,73 @@
 import type { Item } from '../types';
 
-const LAYER_STYLES: Record<number, { bg: string; weight: string; opacity: string; accent?: string }> = {
-  1: { bg: '#FFFFFF', weight: '600', opacity: '1', accent: '#C2553A' },
-  2: { bg: 'transparent', weight: '500', opacity: '1' },
-  3: { bg: 'transparent', weight: '400', opacity: '0.75' },
-  4: { bg: 'transparent', weight: '400', opacity: '0.55' },
+// Per-layer styling pulled directly from Paper mockup
+const LAYER_CONFIG: Record<number, {
+  bg: string;
+  iconColor: string;
+  titleColor: string;
+  titleWeight: number;
+  repoColor: string;
+  authorColor: string;
+  metaColor: string;
+  timeColor: string;
+  chevronColor: string;
+  paddingBlock: number;
+}> = {
+  1: {
+    bg: '#FFFFFF',
+    iconColor: '#C2553A',
+    titleColor: '#1B1B18',
+    titleWeight: 500,
+    repoColor: '#9F9F97',
+    authorColor: '#6B6B63',
+    metaColor: '#9F9F97',
+    timeColor: '#B5B5AD',
+    chevronColor: '#C8C8C0',
+    paddingBlock: 16,
+  },
+  2: {
+    bg: 'transparent',
+    iconColor: '#6B6B63',
+    titleColor: '#1B1B18',
+    titleWeight: 500,
+    repoColor: '#9F9F97',
+    authorColor: '#6B6B63',
+    metaColor: '#B5B5AD',
+    timeColor: '#B5B5AD',
+    chevronColor: '#D0D0C8',
+    paddingBlock: 14,
+  },
+  3: {
+    bg: 'transparent',
+    iconColor: '#B5B5AD',
+    titleColor: '#4A4A44',
+    titleWeight: 400,
+    repoColor: '#B5B5AD',
+    authorColor: '#9F9F97',
+    metaColor: '#C8C8C0',
+    timeColor: '#C8C8C0',
+    chevronColor: '#D8D8D0',
+    paddingBlock: 14,
+  },
+  4: {
+    bg: 'transparent',
+    iconColor: '#D0D0C8',
+    titleColor: '#9F9F97',
+    titleWeight: 400,
+    repoColor: '#C8C8C0',
+    authorColor: '#B5B5AD',
+    metaColor: '#D0D0C8',
+    timeColor: '#D0D0C8',
+    chevronColor: '#D8D8D0',
+    paddingBlock: 12,
+  },
 };
 
-function TypeBadge({ item }: { item: Item }) {
-  const isPR = item.type === 'pr';
-  let color = '#6B6B63';
+// SVG paths for PR and Issue icons
+const PR_PATH = 'M7.177 3.073L9.573.677A.25.25 0 0 1 10 .854v4.792a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354zM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm-2.25.75a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25zM11 2.5h-1V4h1a1 1 0 0 1 1 1v5.628a2.251 2.251 0 1 1-1.5 0V5a2.5 2.5 0 0 0-2.5-2.5zm1 10.25a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0zM3.75 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5z';
 
-  if (item.state === 'merged') color = '#8250DF';
-  else if (item.state === 'closed') color = '#CF222E';
-  else if (item.state === 'open') color = isPR ? '#1A7F37' : '#1A7F37';
-
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill={color}>
-      {isPR ? (
-        // Git PR icon
-        <path d="M5.5 3.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0ZM6 3.5a2.5 2.5 0 1 1-3.5 2.293v4.414A2.501 2.501 0 0 1 4 15a2.5 2.5 0 0 1-1.5-4.793V5.793A2.501 2.501 0 0 1 4 1a2.5 2.5 0 0 1 2 3.5ZM4 13.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8-10a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0ZM12 1a2.5 2.5 0 0 1 .5 4.95v4.1A2.501 2.501 0 0 1 12 15a2.5 2.5 0 0 1-.5-4.95v-4.1A2.501 2.501 0 0 1 12 1Zm0 12.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
-      ) : (
-        // Issue icon
-        <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm9 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-.25-6.25a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 1.5 0v-3.5Z" />
-      )}
-    </svg>
-  );
-}
+const ISSUE_PATH_1 = 'M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z';
+const ISSUE_PATH_2 = 'M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z';
 
 function formatRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -40,96 +81,124 @@ function formatRelative(iso: string): string {
   return `${Math.floor(days / 30)}mo`;
 }
 
-interface ItemRowProps {
-  item: Item;
-  showLayer?: boolean;
+function getReasonLabel(item: Item): string | null {
+  const reasons: string[] = JSON.parse(item.layer_reasons || '[]');
+  if (reasons.includes('review_requested') || reasons.includes('notification_review_requested')) return 'requested your review';
+  if (reasons.includes('mentioned')) return 'mentioned you in a comment';
+  if (reasons.includes('assigned')) return 'assigned to you';
+  if (reasons.includes('pr_on_owned_repo')) return 'opened a PR on your repo';
+  if (reasons.includes('your_pr_changes_requested')) return 'changes requested';
+  if (reasons.includes('your_open_pr')) return 'your PR';
+  if (reasons.includes('author_followed')) return 'you follow';
+  if (reasons.includes('starred_repo')) return 'starred repo';
+  if (reasons.includes('contributor_repo')) return 'your repo';
+  if (reasons.includes('high_comments')) return `${item.comment_count} comments`;
+  if (reasons.includes('high_reactions')) return `${item.reaction_count} reactions`;
+  if (reasons.includes('many_participants')) return `${item.participant_count} participants`;
+  if (reasons.includes('prolific_author')) return 'repeat contributor';
+  return null;
 }
 
-export default function ItemRow({ item, showLayer }: ItemRowProps) {
-  const style = LAYER_STYLES[item.layer] ?? LAYER_STYLES[4];
-  const labels: string[] = JSON.parse(item.labels || '[]');
+interface ItemRowProps {
+  item: Item;
+}
+
+export default function ItemRow({ item }: ItemRowProps) {
+  const cfg = LAYER_CONFIG[item.layer] ?? LAYER_CONFIG[4];
+  const isPR = item.type === 'pr';
+  const reasonLabel = getReasonLabel(item);
+  const showChevron = item.layer !== 4;
 
   return (
     <a
       href={item.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-start gap-3 px-5 py-3 transition-colors hover:bg-black/[0.02]"
       style={{
-        backgroundColor: style.bg,
-        opacity: style.opacity,
-        borderBottom: '1px solid #F0EFEB',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 16,
+        paddingBlock: cfg.paddingBlock,
+        paddingInline: 20,
+        borderRadius: 10,
+        backgroundColor: cfg.bg,
+        textDecoration: 'none',
+        cursor: 'pointer',
       }}
     >
-      <div className="pt-0.5 flex-shrink-0">
-        <TypeBadge item={item} />
-      </div>
+      {/* Type icon */}
+      <svg width="16" height="16" viewBox="0 0 16 16" fill={cfg.iconColor} style={{ flexShrink: 0, marginTop: 2 }}>
+        {isPR ? (
+          <path d={PR_PATH} />
+        ) : (
+          <>
+            <path d={ISSUE_PATH_1} />
+            <path d={ISSUE_PATH_2} />
+          </>
+        )}
+      </svg>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span
-            className="text-sm truncate"
-            style={{ fontWeight: style.weight, color: '#1B1B18' }}
-          >
+      {/* Content */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', gap: item.layer === 4 ? 3 : 4, minWidth: 0 }}>
+        {/* Title + repo */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{
+            fontFamily: '"Inter", system-ui, sans-serif',
+            fontSize: 14,
+            fontWeight: cfg.titleWeight,
+            lineHeight: '18px',
+            color: cfg.titleColor,
+          }}>
             {item.title}
           </span>
-          {item.is_draft ? (
-            <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: '#9F9F97', backgroundColor: '#F0EFEB' }}>
-              Draft
-            </span>
-          ) : null}
+          <span style={{
+            fontFamily: '"Geist Mono", monospace',
+            fontSize: 11,
+            lineHeight: '14px',
+            color: cfg.repoColor,
+            flexShrink: 0,
+          }}>
+            {item.repo_owner}/{item.repo_name}
+          </span>
         </div>
 
-        <div className="flex items-center gap-2 mt-1">
-          <span
-            className="text-xs"
-            style={{ color: '#6B6B63', fontFamily: '"Geist Mono", ui-monospace, monospace' }}
-          >
-            {item.repo_owner}/{item.repo_name}#{item.number}
-          </span>
-
-          <span className="text-xs" style={{ color: '#9F9F97' }}>
+        {/* Author + reason + time */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            fontFamily: '"Inter", system-ui, sans-serif',
+            fontSize: 12,
+            lineHeight: '16px',
+            color: cfg.authorColor,
+          }}>
             {item.author_login}
           </span>
-
-          {labels.slice(0, 3).map((label) => (
-            <span
-              key={label}
-              className="text-[10px] px-1.5 py-0.5 rounded"
-              style={{ color: '#6B6B63', backgroundColor: '#F0EFEB' }}
-            >
-              {label}
+          {reasonLabel && (
+            <span style={{
+              fontFamily: '"Inter", system-ui, sans-serif',
+              fontSize: 11,
+              lineHeight: '14px',
+              color: cfg.metaColor,
+            }}>
+              {reasonLabel}
             </span>
-          ))}
+          )}
+          <span style={{
+            fontFamily: '"Geist Mono", monospace',
+            fontSize: 11,
+            lineHeight: '14px',
+            color: cfg.timeColor,
+          }}>
+            {formatRelative(item.updated_at)}
+          </span>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-shrink-0 pt-0.5">
-        {item.comment_count > 0 && (
-          <span className="flex items-center gap-1 text-xs" style={{ color: '#9F9F97' }}>
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M1 2.75C1 1.784 1.784 1 2.75 1h10.5c.966 0 1.75.784 1.75 1.75v7.5A1.75 1.75 0 0 1 13.25 12H9.06l-2.573 2.573A1.458 1.458 0 0 1 4 13.543V12H2.75A1.75 1.75 0 0 1 1 10.25v-7.5Z" />
-            </svg>
-            {item.comment_count}
-          </span>
-        )}
-
-        {showLayer && (
-          <span
-            className="text-[10px] font-medium w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0"
-            style={{
-              backgroundColor: item.layer === 1 ? '#C2553A' : '#F0EFEB',
-              color: item.layer === 1 ? '#FFFFFF' : '#6B6B63',
-            }}
-          >
-            {item.layer}
-          </span>
-        )}
-
-        <span className="text-xs tabular-nums" style={{ color: '#9F9F97', fontFamily: '"Geist Mono", ui-monospace, monospace' }}>
-          {formatRelative(item.updated_at)}
-        </span>
-      </div>
+      {/* Chevron */}
+      {showChevron && (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={cfg.chevronColor} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 4 }}>
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      )}
     </a>
   );
 }
