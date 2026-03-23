@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import Database from 'better-sqlite3';
 import { getDbPath } from '../config.js';
 import { applySchema } from './schema.js';
@@ -11,6 +13,9 @@ export function getDb(dbPath?: string): Database.Database {
 }
 
 export function createDb(dbPath: string): Database.Database {
+  if (dbPath !== ':memory:') {
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  }
   const instance = new Database(dbPath);
   instance.pragma('journal_mode = WAL');
   instance.pragma('foreign_keys = ON');
