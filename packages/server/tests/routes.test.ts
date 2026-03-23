@@ -41,7 +41,7 @@ let app: Hono;
 
 beforeEach(() => {
   db = createDb(':memory:');
-  app = createApp(db);
+  app = createApp(db, () => ({}));
 });
 
 afterEach(() => {

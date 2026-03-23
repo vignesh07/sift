@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
 import type Database from 'better-sqlite3';
-import { readConfig } from '../config.js';
+import type { ConfigGetter } from '../app.js';
 import { createOctokit, createGraphQL } from '../github/client.js';
 import { runSync } from '../github/sync.js';
 
-export function syncRoutes(db: Database.Database): Hono {
+export function syncRoutes(db: Database.Database, getConfig: ConfigGetter): Hono {
   const app = new Hono();
 
   app.post('/api/sync', async (c) => {
-    const config = readConfig();
+    const config = getConfig();
     if (!config.token) {
       return c.json({ error: 'No token configured' }, 401);
     }

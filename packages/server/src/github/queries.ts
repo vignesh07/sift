@@ -39,8 +39,8 @@ export const USER_REPOS_QUERY = `
 `;
 
 export const SEARCH_QUERY = `
-  query($query: String!, $cursor: String) {
-    search(query: $query, type: ISSUE, first: 50, after: $cursor) {
+  query($searchQuery: String!, $cursor: String) {
+    search(query: $searchQuery, type: ISSUE, first: 50, after: $cursor) {
       pageInfo { hasNextPage endCursor }
       issueCount
       nodes {

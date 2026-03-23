@@ -73,7 +73,7 @@ export async function searchGitHub(gql: GraphQLFn, query: string): Promise<Searc
   let pages = 0;
 
   do {
-    const data: any = await gql(SEARCH_QUERY, { query, cursor });
+    const data: any = await gql(SEARCH_QUERY, { searchQuery: query, cursor });
     const { nodes, pageInfo } = data.search;
 
     for (const node of nodes) {
