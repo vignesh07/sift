@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
@@ -15,12 +16,22 @@ async function main() {
   const db = getDb();
   const app = createApp(db);
 
-  // Serve static frontend in production
-  const staticDir = path.resolve(__dirname, '../../web/dist');
-  app.use('/*', serveStatic({ root: staticDir }));
+  // Serve static frontend in production (when built)
+  const webDistDir = path.resolve(__dirname, '../../web/dist');
+  if (fs.existsSync(webDistDir)) {
+    app.use('/assets/*', serveStatic({ root: webDistDir }));
+    // SPA fallback: serve index.html for non-API routes
+    app.get('*', (c) => {
+      if (c.req.path.startsWith('/api')) {
+        return c.json({ error: 'Not found' }, 404);
+      }
+      const html = fs.readFileSync(path.join(webDistDir, 'index.html'), 'utf-8');
+      return c.html(html);
+    });
+  }
 
   // Start server
-  const server = serve({ fetch: app.fetch, port: PORT, hostname: '127.0.0.1' }, (info) => {
+  serve({ fetch: app.fetch, port: PORT, hostname: '127.0.0.1' }, (info) => {
     console.log(`Sift running at http://127.0.0.1:${info.port}`);
   });
 
