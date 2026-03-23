@@ -63,7 +63,7 @@ export const SEARCH_QUERY = `
           participants(first: 1) { totalCount }
           comments { totalCount }
           reactions { totalCount }
-          reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
+          reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } } } }
         }
         ... on Issue {
           __typename
