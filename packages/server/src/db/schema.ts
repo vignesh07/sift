@@ -64,6 +64,7 @@ export function applySchema(db: Database.Database): void {
       owner TEXT NOT NULL,
       name TEXT NOT NULL,
       is_owner INTEGER NOT NULL DEFAULT 0,
+      permission TEXT NOT NULL DEFAULT 'READ',
       synced_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (owner, name)
     );

@@ -11,7 +11,7 @@ export function statusRoutes(db: Database.Database, getConfig: ConfigGetter): Ho
     const config = getConfig();
     const needsToken = !config.token;
     const lastSync = getSyncState(db, 'last_sync') ?? null;
-    const itemCounts = needsToken ? { 1: 0, 2: 0, 3: 0, 4: 0 } : getItemCounts(db);
+    const itemCounts = needsToken ? { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } : getItemCounts(db);
 
     return c.json({
       needsToken,

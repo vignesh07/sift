@@ -17,7 +17,7 @@ export interface Item {
   labels: string; // JSON array
   notification_reason: string | null;
   is_read: number;
-  layer: 1 | 2 | 3 | 4;
+  layer: 1 | 2 | 3 | 4 | 5;
   layer_reasons: string; // JSON array
   is_draft: number | null;
   review_decision: string | null;
@@ -42,4 +42,11 @@ export interface SyncResult {
   itemsSynced: number;
   socialRefreshed: boolean;
   errors: string[];
+}
+
+export interface SetupResponse {
+  success: boolean;
+  username: string;
+  tokenStorage: 'keychain' | 'config';
+  scopesVerified: boolean;
 }

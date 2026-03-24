@@ -3,19 +3,20 @@ import type { SearchItem } from '../github/search.js';
 export interface ClassificationContext {
   username: string;
   following: Set<string>;
-  starredRepos: Set<string>;       // "owner/name" format
-  userRepos: Set<string>;          // "owner/name" format — repos user contributes to
-  ownedRepos: Set<string>;         // "owner/name" format — repos user is admin of
-  ownedRepoCollaborators: Set<string>; // logins who are collaborators on owned repos
+  starredRepos: Set<string>;           // "owner/name" format
+  userRepos: Set<string>;              // "owner/name" format — repos user contributes to
+  ownedRepos: Set<string>;             // "owner/name" format — repos user is ADMIN of (Layer 1)
+  maintainerRepos: Set<string>;        // "owner/name" format — repos with ADMIN/MAINTAIN/WRITE (Layer 3)
+  maintainerRepoCollaborators: Set<string>; // logins who are collaborators on maintainer repos
 }
 
 export interface ClassificationResult {
-  layer: 1 | 2 | 3 | 4;
+  layer: 1 | 2 | 3 | 4 | 5;
   reasons: string[];
 }
 
 /**
- * Classify an item into a layer (1-4) based on signal priority.
+ * Classify an item into a layer (1-5) based on signal priority.
  *
  * Layer 1 — Needs You: direct action required from the user
  *   - Review requested for you
@@ -25,17 +26,18 @@ export interface ClassificationResult {
  *   - Your open PRs
  *
  * Layer 2 — Your Circle: people you deliberately track
- *   - Author is someone you follow
- *   - Author is a collaborator on a repo you own
- *   - On a repo you contribute to
+ *   - Author is someone you follow on a repo you contribute to
  *
- * Layer 3 — Interesting: worth a look
+ * Layer 3 — Your Repos: fellow maintainers active on repos you own
+ *   - Author is a collaborator on a repo you own, item is on a repo you own
+ *
+ * Layer 4 — Interesting: worth a look
  *   - @mentions
  *   - On a starred repo
  *   - High engagement (comments, reactions, participants)
  *   - Prolific author in batch (applied in classifyBatch)
  *
- * Layer 4 — Everything Else
+ * Layer 5 — Everything Else
  */
 export function classify(
   item: SearchItem & { notification_reason?: string | null },
@@ -80,23 +82,33 @@ export function classify(
 
   // --- Layer 2: Your Circle ---
 
-  if (ctx.following.has(item.author_login)) {
+  if (
+    ctx.following.has(item.author_login) &&
+    ctx.userRepos.has(repoKey) &&
+    item.author_login !== ctx.username
+  ) {
     reasons.push('author_followed');
-  }
-
-  if (ctx.ownedRepoCollaborators.has(item.author_login) && item.author_login !== ctx.username) {
-    reasons.push('owned_repo_collaborator');
-  }
-
-  if (ctx.userRepos.has(repoKey) && !ctx.ownedRepos.has(repoKey)) {
-    reasons.push('contributor_repo');
   }
 
   if (reasons.length > 0) {
     return { layer: 2, reasons };
   }
 
-  // --- Layer 3: Interesting ---
+  // --- Layer 3: Your Repos (fellow maintainers on repos you maintain) ---
+
+  if (
+    ctx.maintainerRepos.has(repoKey) &&
+    ctx.maintainerRepoCollaborators.has(item.author_login) &&
+    item.author_login !== ctx.username
+  ) {
+    reasons.push('maintainer_on_owned_repo');
+  }
+
+  if (reasons.length > 0) {
+    return { layer: 3, reasons };
+  }
+
+  // --- Layer 4: Interesting ---
 
   if (item.notification_reason === 'mention') {
     reasons.push('mentioned');
@@ -119,11 +131,11 @@ export function classify(
   }
 
   if (reasons.length > 0) {
-    return { layer: 3, reasons };
+    return { layer: 4, reasons };
   }
 
-  // --- Layer 4 ---
-  return { layer: 4, reasons: ['no_special_signals'] };
+  // --- Layer 5 ---
+  return { layer: 5, reasons: ['no_special_signals'] };
 }
 
 /**
@@ -144,9 +156,9 @@ export function classifyBatch(
   for (const item of items) {
     let result = classify(item, ctx);
 
-    // Prolific author: 3+ items in batch and currently Layer 4 → bump to Layer 3
-    if (result.layer === 4 && (authorCounts.get(item.author_login) ?? 0) >= 3) {
-      result = { layer: 3, reasons: ['prolific_author'] };
+    // Prolific author: 3+ items in batch and currently Layer 5 → bump to Layer 4
+    if (result.layer === 5 && (authorCounts.get(item.author_login) ?? 0) >= 3) {
+      result = { layer: 4, reasons: ['prolific_author'] };
     }
 
     results.set(item.id, result);

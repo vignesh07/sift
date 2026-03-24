@@ -69,12 +69,8 @@ export function upsertItem(db: Database.Database, item: Omit<ItemRow, 'synced_at
       notification_reason = COALESCE(excluded.notification_reason, items.notification_reason),
       notification_id = COALESCE(excluded.notification_id, items.notification_id),
       is_read = excluded.is_read,
-      layer = MIN(excluded.layer, items.layer),
-      layer_reasons = CASE
-        WHEN excluded.layer < items.layer THEN excluded.layer_reasons
-        WHEN excluded.layer = items.layer THEN excluded.layer_reasons
-        ELSE items.layer_reasons
-      END,
+      layer = excluded.layer,
+      layer_reasons = excluded.layer_reasons,
       is_draft = COALESCE(excluded.is_draft, items.is_draft),
       review_decision = COALESCE(excluded.review_decision, items.review_decision),
       additions = COALESCE(excluded.additions, items.additions),
@@ -134,30 +130,45 @@ export function queryItems(db: Database.Database, filter: ItemFilter = {}): { it
   return { items, total };
 }
 
+export function buildFtsQuery(query: string): string | null {
+  const tokens = query.match(/[\p{L}\p{N}_]+/gu) ?? [];
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  return tokens.map(token => `${token}*`).join(' ');
+}
+
 export function searchItems(db: Database.Database, query: string, filter: { layer?: number; limit?: number } = {}): { items: ItemRow[]; total: number } {
   const { layer, limit = 50 } = filter;
+  const ftsQuery = buildFtsQuery(query);
 
-  let sql = `
-    SELECT items.* FROM items_fts
+  if (!ftsQuery) {
+    return { items: [], total: 0 };
+  }
+
+  let fromClause = `
+    FROM items_fts
     JOIN items ON items.rowid = items_fts.rowid
     WHERE items_fts MATCH @query
   `;
-  const params: Record<string, unknown> = { query, limit };
+  const params: Record<string, unknown> = { query: ftsQuery, limit };
 
   if (layer !== undefined) {
-    sql += ' AND items.layer = @layer';
+    fromClause += ' AND items.layer = @layer';
     params.layer = layer;
   }
 
-  sql += ' ORDER BY rank LIMIT @limit';
+  const total = (db.prepare(`SELECT COUNT(*) as count ${fromClause}`).get(params) as { count: number }).count;
+  const sql = `SELECT items.* ${fromClause} ORDER BY rank LIMIT @limit`;
 
   const items = db.prepare(sql).all(params) as ItemRow[];
-  return { items, total: items.length };
+  return { items, total };
 }
 
 export function getItemCounts(db: Database.Database): Record<number, number> {
   const rows = db.prepare('SELECT layer, COUNT(*) as count FROM items GROUP BY layer').all() as { layer: number; count: number }[];
-  const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   for (const row of rows) {
     counts[row.layer] = row.count;
   }
@@ -207,20 +218,20 @@ export function getStarredRepos(db: Database.Database): { owner: string; name: s
   return db.prepare('SELECT owner, name FROM starred_repos').all() as { owner: string; name: string }[];
 }
 
-export function upsertUserRepos(db: Database.Database, repos: { owner: string; name: string; is_owner: boolean }[]): void {
+export function upsertUserRepos(db: Database.Database, repos: { owner: string; name: string; is_owner: boolean; permission: string }[]): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM user_repos').run();
-    const stmt = db.prepare('INSERT INTO user_repos (owner, name, is_owner) VALUES (@owner, @name, @is_owner)');
+    const stmt = db.prepare('INSERT INTO user_repos (owner, name, is_owner, permission) VALUES (@owner, @name, @is_owner, @permission)');
     for (const repo of repos) {
-      stmt.run({ ...repo, is_owner: repo.is_owner ? 1 : 0 });
+      stmt.run({ owner: repo.owner, name: repo.name, is_owner: repo.is_owner ? 1 : 0, permission: repo.permission });
     }
   });
   tx();
 }
 
-export function getUserRepos(db: Database.Database): { owner: string; name: string; is_owner: boolean }[] {
-  return (db.prepare('SELECT owner, name, is_owner FROM user_repos').all() as { owner: string; name: string; is_owner: number }[])
-    .map(r => ({ ...r, is_owner: r.is_owner === 1 }));
+export function getUserRepos(db: Database.Database): { owner: string; name: string; is_owner: boolean; permission: string }[] {
+  return (db.prepare('SELECT owner, name, is_owner, permission FROM user_repos').all() as { owner: string; name: string; is_owner: number; permission: string }[])
+    .map(r => ({ owner: r.owner, name: r.name, is_owner: r.is_owner === 1, permission: r.permission }));
 }
 
 export function upsertRepoCollaborators(db: Database.Database, repoOwner: string, repoName: string, logins: string[]): void {

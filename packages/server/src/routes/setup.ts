@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { readConfig, writeConfig } from '../config.js';
+import { storeToken, writeConfig } from '../config.js';
 import { validateToken } from '../github/client.js';
 
 export function setupRoutes(): Hono {
@@ -18,12 +18,25 @@ export function setupRoutes(): Hono {
       return c.json({ error: 'Invalid token. Check scopes: notifications, read:user, repo' }, 400);
     }
 
-    const config = readConfig();
-    config.token = token.trim();
-    config.username = result.login;
-    writeConfig(config);
+    if (result.scopesVerified && result.missingScopes.length > 0) {
+      return c.json({
+        error: `Token is missing scopes: ${result.missingScopes.join(', ')}`,
+      }, 400);
+    }
 
-    return c.json({ success: true, username: result.login });
+    const tokenStorage = storeToken(token.trim());
+    writeConfig({
+      username: result.login,
+      token: tokenStorage === 'config' ? token.trim() : undefined,
+      tokenStorage,
+    });
+
+    return c.json({
+      success: true,
+      username: result.login,
+      tokenStorage,
+      scopesVerified: result.scopesVerified,
+    });
   });
 
   return app;

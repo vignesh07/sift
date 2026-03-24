@@ -58,7 +58,7 @@ describe('GET /api/status', () => {
     const { status, body } = await req('/api/status');
     expect(status).toBe(200);
     expect(body.needsToken).toBe(true);
-    expect(body.itemCounts).toEqual({ 1: 0, 2: 0, 3: 0, 4: 0 });
+    expect(body.itemCounts).toEqual({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
   });
 });
 
@@ -107,6 +107,16 @@ describe('GET /api/items/search', () => {
       makeRow({ id: 'n2', title: 'Add feature' }),
     ]);
     const { body } = await req('/api/items/search?q=memory');
+    expect(body.items.length).toBe(1);
+    expect(body.items[0].id).toBe('n1');
+  });
+
+  it('does not error on punctuation-heavy queries', async () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', title: 'foo bar' }),
+    ]);
+    const { status, body } = await req('/api/items/search?q=foo-bar');
+    expect(status).toBe(200);
     expect(body.items.length).toBe(1);
     expect(body.items[0].id).toBe('n1');
   });

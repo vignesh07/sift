@@ -49,16 +49,10 @@ export default function Header({ status, view, onViewChange, searchQuery, onSear
         borderBottom: '1px solid rgba(27,27,24,0.06)',
       }}
     >
-      {/* Left: Logo + sync status */}
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
-        <button
-          onClick={() => sync.mutate()}
-          disabled={syncing}
+      {/* Left: Logo + sync status + sync button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <span
           style={{
-            background: 'none',
-            border: 'none',
-            padding: 0,
-            cursor: syncing ? 'default' : 'pointer',
             fontFamily: '"Instrument Serif", serif',
             fontSize: 28,
             fontStyle: 'italic',
@@ -66,22 +60,47 @@ export default function Header({ status, view, onViewChange, searchQuery, onSear
             lineHeight: '34px',
             color: '#1B1B18',
           }}
-          title="Click to sync"
         >
           Sift
-        </button>
-        <span
-          style={{
-            fontFamily: '"Geist Mono", monospace',
-            fontSize: 11,
-            letterSpacing: '0.05em',
-            lineHeight: '14px',
-            textTransform: 'uppercase' as const,
-            color: '#9F9F97',
-          }}
-        >
-          {syncing ? 'Syncing...' : `Synced ${lastSync}`}
         </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span
+            style={{
+              fontFamily: '"Geist Mono", monospace',
+              fontSize: 11,
+              letterSpacing: '0.05em',
+              lineHeight: '14px',
+              textTransform: 'uppercase' as const,
+              color: '#9F9F97',
+            }}
+          >
+            {syncing ? 'Syncing...' : `Synced ${lastSync}`}
+          </span>
+          <button
+            onClick={() => sync.mutate()}
+            disabled={syncing}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 2,
+              cursor: syncing ? 'default' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: syncing ? 0.4 : 0.6,
+            }}
+            title="Sync now"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9F9F97" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={syncing ? { animation: 'spin 1s linear infinite' } : undefined}
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
+              <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Right: View toggle + search + user */}

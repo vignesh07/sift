@@ -51,6 +51,18 @@ const LAYER_CONFIG: Record<number, {
   },
   4: {
     bg: 'transparent',
+    iconColor: '#B5B5AD',
+    titleColor: '#4A4A44',
+    titleWeight: 400,
+    repoColor: '#B5B5AD',
+    authorColor: '#9F9F97',
+    metaColor: '#C8C8C0',
+    timeColor: '#C8C8C0',
+    chevronColor: '#D8D8D0',
+    paddingBlock: 14,
+  },
+  5: {
+    bg: 'transparent',
     iconColor: '#D0D0C8',
     titleColor: '#9F9F97',
     titleWeight: 400,
@@ -92,8 +104,9 @@ function getReasonLabel(item: Item): string | null {
   // Layer 2
   if (reasons.includes('author_followed')) return 'you follow';
   if (reasons.includes('owned_repo_collaborator')) return 'maintainer';
-  if (reasons.includes('contributor_repo')) return 'your repo';
   // Layer 3
+  if (reasons.includes('maintainer_on_owned_repo')) return 'maintainer';
+  // Layer 4
   if (reasons.includes('mentioned')) return 'mentioned you';
   if (reasons.includes('starred_repo')) return 'starred repo';
   if (reasons.includes('high_comments')) return `${item.comment_count} comments`;
@@ -108,10 +121,10 @@ interface ItemRowProps {
 }
 
 export default function ItemRow({ item }: ItemRowProps) {
-  const cfg = LAYER_CONFIG[item.layer] ?? LAYER_CONFIG[4];
+  const cfg = LAYER_CONFIG[item.layer] ?? LAYER_CONFIG[5];
   const isPR = item.type === 'pr';
   const reasonLabel = getReasonLabel(item);
-  const showChevron = item.layer !== 4;
+  const showChevron = item.layer !== 5;
 
   return (
     <a
@@ -143,7 +156,7 @@ export default function ItemRow({ item }: ItemRowProps) {
       </svg>
 
       {/* Content */}
-      <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', gap: item.layer === 4 ? 3 : 4, minWidth: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0%', gap: item.layer === 5 ? 3 : 4, minWidth: 0 }}>
         {/* Title + repo */}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{

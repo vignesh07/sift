@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createDb } from '../src/db/connection.js';
 import {
+  buildFtsQuery,
   upsertItem,
   upsertItems,
   queryItems,
@@ -74,12 +75,12 @@ describe('items', () => {
     expect(result.items[0].title).toBe('Updated title');
   });
 
-  it('keeps the lower (better) layer on conflict', () => {
+  it('latest sync classification wins on conflict', () => {
     upsertItem(db, makeRow({ layer: 1, layer_reasons: '["review_requested"]' }));
     upsertItem(db, makeRow({ layer: 3, layer_reasons: '["high_comments"]' }));
     const result = queryItems(db);
-    expect(result.items[0].layer).toBe(1);
-    expect(result.items[0].layer_reasons).toBe('["review_requested"]');
+    expect(result.items[0].layer).toBe(3);
+    expect(result.items[0].layer_reasons).toBe('["high_comments"]');
   });
 
   it('bulk upserts in transaction', () => {
@@ -172,6 +173,35 @@ describe('FTS search', () => {
     expect(result.items.length).toBe(1);
     expect(result.items[0].id).toBe('n1');
   });
+
+  it('sanitizes punctuation-heavy searches', () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', title: 'foo bar baz' }),
+    ]);
+    const result = searchItems(db, 'foo-bar');
+    expect(result.items.length).toBe(1);
+    expect(result.items[0].id).toBe('n1');
+  });
+
+  it('reports the total search matches separately from the current limit', () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', title: 'parser bug one' }),
+      makeRow({ id: 'n2', title: 'parser bug two' }),
+    ]);
+    const result = searchItems(db, 'parser', { limit: 1 });
+    expect(result.items.length).toBe(1);
+    expect(result.total).toBe(2);
+  });
+});
+
+describe('buildFtsQuery', () => {
+  it('returns null for punctuation-only input', () => {
+    expect(buildFtsQuery('"""')).toBeNull();
+  });
+
+  it('converts free-form input into a prefix query', () => {
+    expect(buildFtsQuery('foo-bar baz')).toBe('foo* bar* baz*');
+  });
 });
 
 describe('item counts', () => {
@@ -183,7 +213,7 @@ describe('item counts', () => {
       makeRow({ id: 'n4', layer: 4 }),
     ]);
     const counts = getItemCounts(db);
-    expect(counts).toEqual({ 1: 2, 2: 1, 3: 0, 4: 1 });
+    expect(counts).toEqual({ 1: 2, 2: 1, 3: 0, 4: 1, 5: 0 });
   });
 });
 
@@ -221,15 +251,15 @@ describe('social tables', () => {
     expect(getStarredRepos(db)).toEqual([{ owner: 'org', name: 'repo' }]);
   });
 
-  it('user repos: tracks is_owner', () => {
+  it('user repos: tracks is_owner and permission', () => {
     upsertUserRepos(db, [
-      { owner: 'me', name: 'my-lib', is_owner: true },
-      { owner: 'org', name: 'shared', is_owner: false },
+      { owner: 'me', name: 'my-lib', is_owner: true, permission: 'ADMIN' },
+      { owner: 'org', name: 'shared', is_owner: false, permission: 'WRITE' },
     ]);
     const repos = getUserRepos(db);
     expect(repos).toEqual([
-      { owner: 'me', name: 'my-lib', is_owner: true },
-      { owner: 'org', name: 'shared', is_owner: false },
+      { owner: 'me', name: 'my-lib', is_owner: true, permission: 'ADMIN' },
+      { owner: 'org', name: 'shared', is_owner: false, permission: 'WRITE' },
     ]);
   });
 });

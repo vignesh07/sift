@@ -88,8 +88,15 @@ export async function searchGitHub(gql: GraphQLFn, query: string): Promise<Searc
   return items;
 }
 
-export function buildSearchQueries(username: string): string[] {
-  return [
+interface SearchQueryOptions {
+  maintainerRepos?: string[];
+  followedLogins?: string[];
+  userRepos?: string[];
+  starredRepos?: string[];
+}
+
+export function buildSearchQueries(username: string, options: SearchQueryOptions = {}): string[] {
+  const queries = [
     // PRs where I'm requested for review
     `is:open is:pr review-requested:${username} sort:updated-desc`,
     // Issues mentioning me
@@ -99,4 +106,45 @@ export function buildSearchQueries(username: string): string[] {
     // Recent activity in issues/PRs I'm involved in
     `is:open involves:${username} sort:updated-desc`,
   ];
+
+  const maintainerRepos = options.maintainerRepos ?? [];
+  const followedLogins = options.followedLogins ?? [];
+  const userRepos = options.userRepos ?? [];
+  const starredRepos = options.starredRepos ?? [];
+
+  if (followedLogins.length > 0 && userRepos.length > 0) {
+    const AUTHORS_PER_QUERY = 5;
+    const REPOS_PER_QUERY = 5;
+    for (let i = 0; i < followedLogins.length && i < 20; i += AUTHORS_PER_QUERY) {
+      const authorBatch = followedLogins.slice(i, i + AUTHORS_PER_QUERY);
+      const authorFilter = authorBatch.map(login => `author:${login}`).join(' ');
+
+      for (let j = 0; j < userRepos.length && j < 20; j += REPOS_PER_QUERY) {
+        const repoBatch = userRepos.slice(j, j + REPOS_PER_QUERY);
+        const repoFilter = repoBatch.map(repo => `repo:${repo}`).join(' ');
+        queries.push(`is:open ${authorFilter} ${repoFilter} sort:updated-desc`);
+      }
+    }
+  }
+
+  if (starredRepos.length > 0) {
+    const REPOS_PER_QUERY = 5;
+    for (let i = 0; i < starredRepos.length && i < 20; i += REPOS_PER_QUERY) {
+      const batch = starredRepos.slice(i, i + REPOS_PER_QUERY);
+      const repoFilter = batch.map(repo => `repo:${repo}`).join(' ');
+      queries.push(`is:open ${repoFilter} sort:updated-desc`);
+    }
+  }
+
+  // Add queries for recent activity on repos I maintain.
+  if (maintainerRepos.length > 0) {
+    const REPOS_PER_QUERY = 5;
+    for (let i = 0; i < maintainerRepos.length && i < 20; i += REPOS_PER_QUERY) {
+      const batch = maintainerRepos.slice(i, i + REPOS_PER_QUERY);
+      const repoFilter = batch.map(r => `repo:${r}`).join(' ');
+      queries.push(`is:open ${repoFilter} sort:updated-desc`);
+    }
+  }
+
+  return queries;
 }

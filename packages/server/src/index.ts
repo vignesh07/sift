@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
@@ -9,12 +10,47 @@ import { readConfig } from './config.js';
 import { createOctokit, createGraphQL } from './github/client.js';
 import { runSync } from './github/sync.js';
 
-const PORT = 4185;
+const DEFAULT_PORT = 4185;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function parsePreferredPort(): number {
+  const raw = process.env.SIFT_PORT ?? process.env.PORT;
+  const parsed = Number(raw ?? DEFAULT_PORT);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_PORT;
+}
+
+function canListen(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+
+    server.once('error', () => {
+      resolve(false);
+    });
+
+    server.once('listening', () => {
+      server.close(() => resolve(true));
+    });
+
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+async function resolvePort(preferredPort: number): Promise<number> {
+  for (let port = preferredPort; port < preferredPort + 20; port++) {
+    if (await canListen(port)) {
+      return port;
+    }
+  }
+
+  throw new Error(`Unable to find an open port starting at ${preferredPort}`);
+}
 
 async function main() {
   const db = getDb();
   const app = createApp(db);
+  const preferredPort = parsePreferredPort();
+  const port = await resolvePort(preferredPort);
+  const appUrl = `http://127.0.0.1:${port}`;
 
   // Serve static frontend in production (when built)
   const webDistDir = path.resolve(__dirname, '../../web/dist');
@@ -31,8 +67,11 @@ async function main() {
   }
 
   // Start server
-  serve({ fetch: app.fetch, port: PORT, hostname: '127.0.0.1' }, (info) => {
+  serve({ fetch: app.fetch, port, hostname: '127.0.0.1' }, (info) => {
     console.log(`Sift running at http://127.0.0.1:${info.port}`);
+    if (info.port !== preferredPort) {
+      console.log(`Port ${preferredPort} was busy, using ${info.port} instead.`);
+    }
   });
 
   // Background sync on startup if token is configured
@@ -47,11 +86,13 @@ async function main() {
   }
 
   // Open browser
-  try {
-    const open = (await import('open')).default;
-    await open(`http://127.0.0.1:${PORT}`);
-  } catch {
-    // Silently fail — user can open manually
+  if (process.env.SIFT_OPEN_BROWSER !== '0') {
+    try {
+      const open = (await import('open')).default;
+      await open(appUrl);
+    } catch {
+      // Silently fail — user can open manually
+    }
   }
 
   // Periodic sync every 5 minutes

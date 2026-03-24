@@ -2,10 +2,10 @@ import type Database from 'better-sqlite3';
 import type { Octokit } from '@octokit/rest';
 import type { graphql } from '@octokit/graphql';
 import { fetchFollowing, fetchStarredRepos, fetchUserRepos, fetchRepoCollaborators } from './social.js';
-import { fetchNotifications } from './notifications.js';
+import { extractNumberFromUrl, fetchNotifications, fetchNotificationSubjectItems, type NotificationItem } from './notifications.js';
 import { searchGitHub, buildSearchQueries } from './search.js';
 import type { SearchItem } from './search.js';
-import { classifyBatch, type ClassificationContext } from '../classify/engine.js';
+import { classify, classifyBatch, type ClassificationContext } from '../classify/engine.js';
 import {
   upsertItems,
   upsertFollowing,
@@ -19,6 +19,7 @@ import {
   getStarredRepos,
   getUserRepos,
   getRepoCollaborators,
+  queryItems,
 } from '../db/queries.js';
 import type { ItemRow } from '../db/queries.js';
 
@@ -30,10 +31,73 @@ export interface SyncResult {
   errors: string[];
 }
 
+type SyncedItem = SearchItem & {
+  notification_reason?: string | null;
+  notification_id?: string | null;
+  is_read?: number;
+};
+
 let syncInProgress = false;
 
 export function isSyncInProgress(): boolean {
   return syncInProgress;
+}
+
+function getRepoNumberKey(repoOwner: string, repoName: string, number: number): string {
+  return `${repoOwner}/${repoName}#${number}`;
+}
+
+function addItem(
+  itemMap: Map<string, SyncedItem>,
+  itemIndex: Map<string, string>,
+  item: SyncedItem,
+): void {
+  const existing = itemMap.get(item.id);
+  const merged: SyncedItem = {
+    ...existing,
+    ...item,
+    notification_reason: item.notification_reason ?? existing?.notification_reason ?? null,
+    notification_id: item.notification_id ?? existing?.notification_id ?? null,
+    is_read: item.is_read ?? existing?.is_read ?? 1,
+  };
+
+  itemMap.set(item.id, merged);
+  itemIndex.set(getRepoNumberKey(merged.repo_owner, merged.repo_name, merged.number), merged.id);
+}
+
+function attachNotification(
+  itemMap: Map<string, SyncedItem>,
+  itemIndex: Map<string, string>,
+  notification: NotificationItem,
+): boolean {
+  const number = notification.subject.url
+    ? extractNumberFromUrl(notification.subject.url)
+    : null;
+
+  if (number === null) {
+    return false;
+  }
+
+  const key = getRepoNumberKey(notification.repository.owner, notification.repository.name, number);
+  const itemId = itemIndex.get(key);
+
+  if (!itemId) {
+    return false;
+  }
+
+  const existing = itemMap.get(itemId);
+  if (!existing) {
+    return false;
+  }
+
+  itemMap.set(itemId, {
+    ...existing,
+    notification_reason: notification.reason,
+    notification_id: notification.id,
+    is_read: notification.unread ? 0 : 1,
+  });
+
+  return true;
 }
 
 export async function runSync(
@@ -67,11 +131,12 @@ export async function runSync(
         upsertStarredRepos(db, starred);
         upsertUserRepos(db, repos);
 
-        // Fetch collaborators for owned repos
-        const ownedRepos = repos.filter(r => r.is_owner);
-        if (ownedRepos.length > 0) {
+        // Fetch collaborators for repos you maintain (ADMIN/MAINTAIN/WRITE)
+        const MAINTAINER_PERMS = new Set(['ADMIN', 'MAINTAIN', 'WRITE']);
+        const maintainerRepos = repos.filter(r => MAINTAINER_PERMS.has(r.permission));
+        if (maintainerRepos.length > 0) {
           try {
-            const collabs = await fetchRepoCollaborators(octokit, ownedRepos);
+            const collabs = await fetchRepoCollaborators(octokit, maintainerRepos);
             for (const c of collabs) {
               upsertRepoCollaborators(db, c.owner, c.name, c.logins);
             }
@@ -92,7 +157,13 @@ export async function runSync(
 
     // 3. Fetch notifications and search results in parallel
     const lastNotif = getSyncState(db, 'last_notification_sync');
-    const searchQueries = buildSearchQueries(username);
+    const maintainerRepoKeys = Array.from(ctx.maintainerRepos);
+    const searchQueries = buildSearchQueries(username, {
+      maintainerRepos: maintainerRepoKeys,
+      followedLogins: Array.from(ctx.following),
+      userRepos: Array.from(ctx.userRepos),
+      starredRepos: Array.from(ctx.starredRepos),
+    });
 
     const [notifications, ...searchResults] = await Promise.all([
       fetchNotifications(octokit, lastNotif ?? undefined),
@@ -103,28 +174,32 @@ export async function runSync(
     ]);
 
     // 4. Merge all items by ID, search results take precedence for data quality
-    const itemMap = new Map<string, SearchItem & { notification_reason?: string | null }>();
+    const itemMap = new Map<string, SyncedItem>();
+    const itemIndex = new Map<string, string>();
 
     // Add search results first
     for (const results of searchResults) {
       for (const item of results) {
-        itemMap.set(item.id, item);
+        addItem(itemMap, itemIndex, item);
       }
     }
 
-    // Overlay notification metadata (we can't get full item data from notifications alone,
-    // but they tell us the reason)
+    // Overlay notification metadata by repo/number. Any notifications not already
+    // represented by search are fetched directly so inbox items do not disappear.
+    const missingNotifications: NotificationItem[] = [];
     for (const n of notifications) {
-      // Notifications don't have node IDs directly — we match by repo+number later
-      // For now, mark any matching items
-      for (const [id, item] of itemMap) {
-        if (
-          item.repo_owner === n.repository.owner &&
-          item.repo_name === n.repository.name &&
-          item.title === n.subject.title
-        ) {
-          itemMap.set(id, { ...item, notification_reason: n.reason });
-        }
+      if (!attachNotification(itemMap, itemIndex, n)) {
+        missingNotifications.push(n);
+      }
+    }
+
+    if (missingNotifications.length > 0) {
+      const notificationItems = await fetchNotificationSubjectItems(octokit, missingNotifications);
+      for (const item of notificationItems) {
+        addItem(itemMap, itemIndex, item);
+      }
+      for (const notification of missingNotifications) {
+        attachNotification(itemMap, itemIndex, notification);
       }
     }
 
@@ -134,7 +209,7 @@ export async function runSync(
 
     // 6. Convert to DB rows and upsert
     const rows: Omit<ItemRow, 'synced_at'>[] = items.map(item => {
-      const cls = classifications.get(item.id) ?? { layer: 4, reasons: ['unclassified'] };
+      const cls = classifications.get(item.id) ?? { layer: 5, reasons: ['unclassified'] };
       return {
         id: item.id,
         type: item.type,
@@ -152,9 +227,9 @@ export async function runSync(
         reaction_count: item.reaction_count,
         participant_count: item.participant_count,
         labels: JSON.stringify(item.labels),
-        notification_reason: (item as any).notification_reason ?? null,
-        notification_id: null,
-        is_read: 0,
+        notification_reason: item.notification_reason ?? null,
+        notification_id: item.notification_id ?? null,
+        is_read: item.is_read ?? 1,
         layer: cls.layer,
         layer_reasons: JSON.stringify(cls.reasons),
         is_draft: item.is_draft === null ? null : item.is_draft ? 1 : 0,
@@ -173,7 +248,10 @@ export async function runSync(
       }
     }
 
-    // 8. Update sync state
+    // 8. Reclassify all existing items (handles rule changes)
+    reclassifyAll(db, ctx);
+
+    // 9. Update sync state
     setSyncState(db, 'last_notification_sync', new Date().toISOString());
     setSyncState(db, 'last_sync', new Date().toISOString());
 
@@ -182,6 +260,64 @@ export async function runSync(
     syncInProgress = false;
   }
 }
+
+function reclassifyAll(db: Database.Database, ctx: ClassificationContext): void {
+  const { items } = queryItems(db, { limit: 10000 });
+  if (items.length === 0) return;
+
+  // Load review requests so Layer 1 review_requested works
+  const reviewRows = db.prepare('SELECT item_id, reviewer_login FROM review_requests').all() as { item_id: string; reviewer_login: string }[];
+  const reviewMap = new Map<string, string[]>();
+  for (const r of reviewRows) {
+    const arr = reviewMap.get(r.item_id) ?? [];
+    arr.push(r.reviewer_login);
+    reviewMap.set(r.item_id, arr);
+  }
+
+  const updateStmt = db.prepare(
+    'UPDATE items SET layer = @layer, layer_reasons = @layer_reasons WHERE id = @id'
+  );
+
+  const tx = db.transaction(() => {
+    for (const row of items) {
+      const result = classify(
+        {
+          id: row.id,
+          type: row.type as 'pr' | 'issue',
+          state: row.state as 'open' | 'closed' | 'merged',
+          title: row.title,
+          url: row.url,
+          number: row.number,
+          repo_owner: row.repo_owner,
+          repo_name: row.repo_name,
+          author_login: row.author_login,
+          author_avatar: row.author_avatar,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          comment_count: row.comment_count,
+          reaction_count: row.reaction_count,
+          participant_count: row.participant_count,
+          labels: JSON.parse(row.labels || '[]'),
+          is_draft: row.is_draft === null ? null : row.is_draft === 1,
+          review_decision: row.review_decision,
+          additions: row.additions,
+          deletions: row.deletions,
+          requested_reviewers: reviewMap.get(row.id) ?? [],
+          notification_reason: row.notification_reason,
+        },
+        ctx,
+      );
+      updateStmt.run({
+        id: row.id,
+        layer: result.layer,
+        layer_reasons: JSON.stringify(result.reasons),
+      });
+    }
+  });
+  tx();
+}
+
+const MAINTAINER_PERMISSIONS = new Set(['ADMIN', 'MAINTAIN', 'WRITE']);
 
 function buildContext(db: Database.Database, username: string): ClassificationContext {
   const following = new Set(getFollowing(db));
@@ -194,7 +330,8 @@ function buildContext(db: Database.Database, username: string): ClassificationCo
     following,
     starredRepos: new Set(starred.map(r => `${r.owner}/${r.name}`)),
     userRepos: new Set(repos.map(r => `${r.owner}/${r.name}`)),
-    ownedRepos: new Set(repos.filter(r => r.is_owner).map(r => `${r.owner}/${r.name}`)),
-    ownedRepoCollaborators: new Set(collabs.map(c => c.login)),
+    ownedRepos: new Set(repos.filter(r => r.permission === 'ADMIN').map(r => `${r.owner}/${r.name}`)),
+    maintainerRepos: new Set(repos.filter(r => MAINTAINER_PERMISSIONS.has(r.permission)).map(r => `${r.owner}/${r.name}`)),
+    maintainerRepoCollaborators: new Set(collabs.map(c => c.login)),
   };
 }

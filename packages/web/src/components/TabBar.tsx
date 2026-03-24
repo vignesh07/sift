@@ -7,8 +7,9 @@ interface TabBarProps {
 const TABS = [
   { layer: 1, label: 'Needs You', activeColor: '#C2553A', inactiveColor: '#6B6B63', badgeBg: 'rgba(194,85,58,0.08)', badgeColor: '#C2553A' },
   { layer: 2, label: 'Your Circle', activeColor: '#1B1B18', inactiveColor: '#6B6B63', badgeBg: 'rgba(27,27,24,0.04)', badgeColor: '#9F9F97' },
-  { layer: 3, label: 'Interesting', activeColor: '#1B1B18', inactiveColor: '#9F9F97', badgeBg: 'rgba(27,27,24,0.03)', badgeColor: '#B5B5AD' },
-  { layer: 4, label: 'Everything Else', activeColor: '#1B1B18', inactiveColor: '#C8C8C0', badgeBg: 'rgba(27,27,24,0.02)', badgeColor: '#D0D0C8' },
+  { layer: 3, label: 'Your Repos', activeColor: '#1B1B18', inactiveColor: '#9F9F97', badgeBg: 'rgba(27,27,24,0.04)', badgeColor: '#B5B5AD' },
+  { layer: 4, label: 'Interesting', activeColor: '#1B1B18', inactiveColor: '#9F9F97', badgeBg: 'rgba(27,27,24,0.03)', badgeColor: '#B5B5AD' },
+  { layer: 5, label: 'Everything Else', activeColor: '#1B1B18', inactiveColor: '#C8C8C0', badgeBg: 'rgba(27,27,24,0.02)', badgeColor: '#D0D0C8' },
 ];
 
 export default function TabBar({ activeLayer, onLayerChange, counts }: TabBarProps) {
@@ -33,8 +34,8 @@ export default function TabBar({ activeLayer, onLayerChange, counts }: TabBarPro
               gap: 8,
               paddingTop: 16,
               paddingBottom: 14,
-              paddingLeft: 24,
-              paddingRight: 24,
+              paddingLeft: 20,
+              paddingRight: 20,
               border: 'none',
               borderBottom: active
                 ? `2px solid ${layer === 1 ? '#C2553A' : '#1B1B18'}`

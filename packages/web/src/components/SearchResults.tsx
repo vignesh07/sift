@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useSearch } from '../hooks/useSearch';
 import ItemRow from './ItemRow';
 
@@ -6,7 +7,12 @@ interface SearchResultsProps {
 }
 
 export default function SearchResults({ query }: SearchResultsProps) {
-  const { data, isLoading } = useSearch(query);
+  const [limit, setLimit] = useState(50);
+  const { data, isLoading, isFetching } = useSearch(query, limit);
+
+  useEffect(() => {
+    setLimit(50);
+  }, [query]);
 
   if (query.length < 2) return null;
 
@@ -37,6 +43,27 @@ export default function SearchResults({ query }: SearchResultsProps) {
               <ItemRow key={item.id} item={item} />
             ))}
           </div>
+          {data.items.length < data.total && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}>
+              <button
+                onClick={() => setLimit((current) => current + 50)}
+                disabled={isFetching}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: 999,
+                  border: '1px solid rgba(27,27,24,0.08)',
+                  backgroundColor: '#FFFFFF',
+                  cursor: isFetching ? 'default' : 'pointer',
+                  fontFamily: '"Inter", system-ui, sans-serif',
+                  fontSize: 12,
+                  color: '#6B6B63',
+                  opacity: isFetching ? 0.6 : 1,
+                }}
+              >
+                {isFetching ? 'Loading...' : `Load 50 more (${data.total - data.items.length} left)`}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

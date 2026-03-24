@@ -85,7 +85,15 @@ export default function SetupScreen() {
             color: '#B5B5AD',
             marginTop: 8,
           }}>
-            Required scopes: notifications, read:user, repo
+            Classic PAT scopes: notifications, read:user, repo
+          </p>
+          <p style={{
+            fontFamily: '"Inter", system-ui, sans-serif',
+            fontSize: 11,
+            color: '#B5B5AD',
+            marginTop: 4,
+          }}>
+            Stored in the macOS Keychain when available, otherwise in your local Sift config.
           </p>
 
           {error && (

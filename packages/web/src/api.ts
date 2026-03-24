@@ -1,4 +1,4 @@
-import type { StatusResponse, ItemsResponse, SyncResult } from './types';
+import type { StatusResponse, ItemsResponse, SyncResult, SetupResponse } from './types';
 
 const BASE = '/api';
 
@@ -49,7 +49,7 @@ export function triggerSync(): Promise<SyncResult> {
   return json('/sync', { method: 'POST' });
 }
 
-export function submitToken(token: string): Promise<{ success: boolean; username: string }> {
+export function submitToken(token: string): Promise<SetupResponse> {
   return json('/setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
