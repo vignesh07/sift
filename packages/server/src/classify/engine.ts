@@ -2,12 +2,10 @@ import type { SearchItem } from '../github/search.js';
 
 export interface ClassificationContext {
   username: string;
-  following: Set<string>;
   starredRepos: Set<string>;           // "owner/name" format
-  userRepos: Set<string>;              // "owner/name" format — repos user contributes to
-  ownedRepos: Set<string>;             // "owner/name" format — repos user is ADMIN of (Layer 1)
-  maintainerRepos: Set<string>;        // "owner/name" format — repos with ADMIN/MAINTAIN/WRITE (Layer 3)
-  maintainerRepoCollaborators: Set<string>; // logins who are collaborators on maintainer repos
+  ownedRepos: Set<string>;             // "owner/name" format — repos user is ADMIN of
+  maintainerRepos: Set<string>;        // "owner/name" format — repos with ADMIN/MAINTAIN/WRITE
+  maintainerRepoCollaborators: Map<string, Set<string>>; // repo -> collaborators with write+ access
 }
 
 export interface ClassificationResult {
@@ -21,15 +19,15 @@ export interface ClassificationResult {
  * Layer 1 — Needs You: direct action required from the user
  *   - Review requested for you
  *   - Assigned to you
- *   - PRs on repos you own (from others)
  *   - Your PRs with changes requested
  *   - Your open PRs
+ *   - Your open issues
  *
- * Layer 2 — Your Circle: people you deliberately track
- *   - Author is someone you follow on a repo you contribute to
+ * Layer 2 — Your Circle: maintainers active on repos you maintain
+ *   - Author is a collaborator on a repo you own or contribute to
  *
- * Layer 3 — Your Repos: fellow maintainers active on repos you own
- *   - Author is a collaborator on a repo you own, item is on a repo you own
+ * Layer 3 — Your Repos: other activity on repos you own
+ *   - Non-maintainer activity on repos you own
  *
  * Layer 4 — Interesting: worth a look
  *   - @mentions
@@ -45,6 +43,8 @@ export function classify(
 ): ClassificationResult {
   const reasons: string[] = [];
   const repoKey = `${item.repo_owner}/${item.repo_name}`;
+  const repoCollaborators = ctx.maintainerRepoCollaborators.get(repoKey) ?? new Set<string>();
+  const authorIsMaintainer = repoCollaborators.has(item.author_login) && item.author_login !== ctx.username;
 
   // --- Layer 1: Needs You ---
 
@@ -60,10 +60,6 @@ export function classify(
     reasons.push('assigned');
   }
 
-  if (item.type === 'pr' && ctx.ownedRepos.has(repoKey) && item.author_login !== ctx.username) {
-    reasons.push('pr_on_owned_repo');
-  }
-
   if (
     item.type === 'pr' &&
     item.author_login === ctx.username &&
@@ -76,32 +72,28 @@ export function classify(
     reasons.push('your_open_pr');
   }
 
+  if (item.type === 'issue' && item.author_login === ctx.username && item.state === 'open') {
+    reasons.push('your_open_issue');
+  }
+
   if (reasons.length > 0) {
     return { layer: 1, reasons };
   }
 
   // --- Layer 2: Your Circle ---
 
-  if (
-    ctx.following.has(item.author_login) &&
-    ctx.userRepos.has(repoKey) &&
-    item.author_login !== ctx.username
-  ) {
-    reasons.push('author_followed');
+  if (ctx.maintainerRepos.has(repoKey) && authorIsMaintainer) {
+    reasons.push(ctx.ownedRepos.has(repoKey) ? 'maintainer_on_owned_repo' : 'maintainer_on_contributing_repo');
   }
 
   if (reasons.length > 0) {
     return { layer: 2, reasons };
   }
 
-  // --- Layer 3: Your Repos (fellow maintainers on repos you maintain) ---
+  // --- Layer 3: Your Repos (non-maintainer activity on repos you own) ---
 
-  if (
-    ctx.maintainerRepos.has(repoKey) &&
-    ctx.maintainerRepoCollaborators.has(item.author_login) &&
-    item.author_login !== ctx.username
-  ) {
-    reasons.push('maintainer_on_owned_repo');
+  if (ctx.ownedRepos.has(repoKey) && item.author_login !== ctx.username && !authorIsMaintainer) {
+    reasons.push(item.type === 'pr' ? 'pr_on_owned_repo' : 'issue_on_owned_repo');
   }
 
   if (reasons.length > 0) {

@@ -45,7 +45,7 @@ async function resolvePort(preferredPort: number): Promise<number> {
   throw new Error(`Unable to find an open port starting at ${preferredPort}`);
 }
 
-async function main() {
+export async function main() {
   const db = getDb();
   const app = createApp(db);
   const preferredPort = parsePreferredPort();
@@ -117,4 +117,10 @@ async function main() {
   });
 }
 
-main().catch(console.error);
+const entryPath = process.argv[1] ? path.resolve(process.argv[1]) : null;
+if (entryPath === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

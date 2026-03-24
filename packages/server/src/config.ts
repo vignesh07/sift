@@ -9,7 +9,19 @@ export interface SiftConfig {
   tokenStorage?: TokenStorage;
 }
 
-const CONFIG_DIR = path.join(os.homedir(), '.config', 'sift');
+function resolveConfigDir(): string {
+  if (process.env.SIFT_CONFIG_DIR) {
+    return process.env.SIFT_CONFIG_DIR;
+  }
+
+  if (process.platform === 'win32') {
+    return path.join(process.env.APPDATA ?? path.join(os.homedir(), 'AppData', 'Roaming'), 'Sift');
+  }
+
+  return path.join(process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'), 'sift');
+}
+
+const CONFIG_DIR = resolveConfigDir();
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 
 interface StoredConfig {

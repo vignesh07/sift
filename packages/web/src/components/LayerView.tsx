@@ -5,9 +5,9 @@ import TabBar from './TabBar';
 import ItemRow from './ItemRow';
 
 const LAYER_DESCRIPTIONS: Record<number, string> = {
-  1: 'Review requests, assignments, and activity on your repos',
-  2: 'People you follow on repos you contribute to',
-  3: 'Fellow maintainers active on repos you own',
+  1: 'Review requests, assignments, and your open work',
+  2: 'Maintainers active on repos you own or contribute to',
+  3: 'Non-maintainer activity on repos you own',
   4: 'Mentions, high engagement, and hotter starred repos',
   5: 'Background activity and lower-signal starred repos',
 };
@@ -89,7 +89,7 @@ export default function LayerView({ status }: LayerViewProps) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: layer === 1 ? 4 : 0 }}>
             {data?.items.map((item) => (
-              <ItemRow key={item.id} item={item} />
+              <ItemRow key={item.id} item={item} emphasized />
             ))}
 
             {data && data.items.length < data.total && (

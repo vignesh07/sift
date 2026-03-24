@@ -21,7 +21,6 @@ import {
   upsertRepoCollaborators,
   getSyncState,
   setSyncState,
-  getFollowing,
   getStarredRepos,
   getUserRepos,
   getRepoCollaborators,
@@ -243,8 +242,6 @@ export async function runSync(
     const maintainerRepoKeys = Array.from(ctx.maintainerRepos);
     const searchQueries = buildSearchQueries(username, {
       maintainerRepos: maintainerRepoKeys,
-      followedLogins: Array.from(ctx.following),
-      userRepos: Array.from(ctx.userRepos),
       starredRepos: Array.from(ctx.starredRepos),
     });
 
@@ -426,18 +423,22 @@ function reclassifyAll(db: Database.Database, ctx: ClassificationContext): void 
 const MAINTAINER_PERMISSIONS = new Set(['ADMIN', 'MAINTAIN', 'WRITE']);
 
 function buildContext(db: Database.Database, username: string): ClassificationContext {
-  const following = new Set(getFollowing(db));
   const starred = getStarredRepos(db);
   const repos = getUserRepos(db);
   const collabs = getRepoCollaborators(db);
+  const maintainerRepoCollaborators = new Map<string, Set<string>>();
+
+  for (const { repo, login } of collabs) {
+    const repoCollaborators = maintainerRepoCollaborators.get(repo) ?? new Set<string>();
+    repoCollaborators.add(login);
+    maintainerRepoCollaborators.set(repo, repoCollaborators);
+  }
 
   return {
     username,
-    following,
     starredRepos: new Set(starred.map(r => `${r.owner}/${r.name}`)),
-    userRepos: new Set(repos.map(r => `${r.owner}/${r.name}`)),
     ownedRepos: new Set(repos.filter(r => r.permission === 'ADMIN').map(r => `${r.owner}/${r.name}`)),
     maintainerRepos: new Set(repos.filter(r => MAINTAINER_PERMISSIONS.has(r.permission)).map(r => `${r.owner}/${r.name}`)),
-    maintainerRepoCollaborators: new Set(collabs.map(c => c.login)),
+    maintainerRepoCollaborators,
   };
 }

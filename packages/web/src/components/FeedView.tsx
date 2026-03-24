@@ -1,23 +1,107 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useItems } from '../hooks/useItems';
 import type { StatusResponse } from '../types';
 import ItemRow from './ItemRow';
 
 type TypeFilter = 'all' | 'pr' | 'issue';
 
-const LAYER_META: Record<number, { label: string; description: string; labelColor: string; countColor: string; descColor: string; previewCount: number }> = {
-  1: { label: 'Needs You', description: 'Review requests, assignments, your repos', labelColor: '#C2553A', countColor: '#C2553A', descColor: '#9F9F97', previewCount: 50 },
-  2: { label: 'Your Circle', description: 'People you follow on repos you contribute to', labelColor: '#1B1B18', countColor: '#6B6B63', descColor: '#9F9F97', previewCount: 50 },
-  3: { label: 'Your Repos', description: 'Fellow maintainers on repos you maintain', labelColor: '#1B1B18', countColor: '#6B6B63', descColor: '#9F9F97', previewCount: 50 },
-  4: { label: 'Interesting', description: 'Mentions, high engagement, hotter starred repos', labelColor: '#9F9F97', countColor: '#B5B5AD', descColor: '#B5B5AD', previewCount: 3 },
-  5: { label: 'Everything Else', description: 'Background activity and lower-signal starred repos', labelColor: '#C8C8C0', countColor: '#D0D0C8', descColor: '#C8C8C0', previewCount: 3 },
+const LAYER_META: Record<number, {
+  label: string;
+  description: string;
+  idleLabelColor: string;
+  idleCountColor: string;
+  idleDescColor: string;
+  activeLabelColor: string;
+  activeCountColor: string;
+  activeDescColor: string;
+  previewCount: number;
+  idleOpacity: number;
+  activeOpacity: number;
+}> = {
+  1: {
+    label: 'Needs You',
+    description: 'Review requests, assignments, your open work',
+    idleLabelColor: '#C2553A',
+    idleCountColor: '#C2553A',
+    idleDescColor: '#9F9F97',
+    activeLabelColor: '#C2553A',
+    activeCountColor: '#C2553A',
+    activeDescColor: '#9F9F97',
+    previewCount: 50,
+    idleOpacity: 1,
+    activeOpacity: 1,
+  },
+  2: {
+    label: 'Your Circle',
+    description: 'Maintainers active on repos you own or contribute to',
+    idleLabelColor: '#1B1B18',
+    idleCountColor: '#6B6B63',
+    idleDescColor: '#9F9F97',
+    activeLabelColor: '#1B1B18',
+    activeCountColor: '#6B6B63',
+    activeDescColor: '#9F9F97',
+    previewCount: 50,
+    idleOpacity: 1,
+    activeOpacity: 1,
+  },
+  3: {
+    label: 'Your Repos',
+    description: 'Non-maintainer activity on repos you own',
+    idleLabelColor: '#1B1B18',
+    idleCountColor: '#6B6B63',
+    idleDescColor: '#9F9F97',
+    activeLabelColor: '#1B1B18',
+    activeCountColor: '#6B6B63',
+    activeDescColor: '#9F9F97',
+    previewCount: 50,
+    idleOpacity: 0.92,
+    activeOpacity: 1,
+  },
+  4: {
+    label: 'Interesting',
+    description: 'Mentions, high engagement, hotter starred repos',
+    idleLabelColor: '#9F9F97',
+    idleCountColor: '#B5B5AD',
+    idleDescColor: '#B5B5AD',
+    activeLabelColor: '#5F5F58',
+    activeCountColor: '#73736C',
+    activeDescColor: '#85857E',
+    previewCount: 3,
+    idleOpacity: 0.56,
+    activeOpacity: 1,
+  },
+  5: {
+    label: 'Everything Else',
+    description: 'Background activity and lower-signal starred repos',
+    idleLabelColor: '#C8C8C0',
+    idleCountColor: '#D0D0C8',
+    idleDescColor: '#C8C8C0',
+    activeLabelColor: '#7A7A73',
+    activeCountColor: '#8E8E87',
+    activeDescColor: '#9F9F97',
+    previewCount: 3,
+    idleOpacity: 0.44,
+    activeOpacity: 0.98,
+  },
 };
 
 interface FeedViewProps {
   status: StatusResponse;
 }
 
-function LayerSection({ layer, status, typeFilter }: { layer: number; status: StatusResponse; typeFilter: TypeFilter }) {
+function LayerSection({
+  layer,
+  status,
+  typeFilter,
+  activeLayer,
+  sectionRef,
+}: {
+  layer: number;
+  status: StatusResponse;
+  typeFilter: TypeFilter;
+  activeLayer: number;
+  sectionRef: (node: HTMLDivElement | null) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [limit, setLimit] = useState(LAYER_META[layer].previewCount);
   const meta = LAYER_META[layer];
@@ -43,9 +127,14 @@ function LayerSection({ layer, status, typeFilter }: { layer: number; status: St
   const hiddenCount = Math.max(count - meta.previewCount, 0);
   const canExpand = count > meta.previewCount;
   const hasMore = expanded && data ? data.items.length < data.total : false;
+  const active = activeLayer === layer;
+  const headerOpacity = active ? meta.activeOpacity : meta.idleOpacity;
+  const labelColor = active ? meta.activeLabelColor : meta.idleLabelColor;
+  const countColor = active ? meta.activeCountColor : meta.idleCountColor;
+  const descColor = active ? meta.activeDescColor : meta.idleDescColor;
 
   return (
-    <div>
+    <div ref={sectionRef}>
       {/* Layer header */}
       <div style={{
         display: 'flex',
@@ -54,6 +143,8 @@ function LayerSection({ layer, status, typeFilter }: { layer: number; status: St
         paddingLeft: 80,
         paddingRight: 80,
         paddingTop: layer === 1 ? 40 : 48,
+        opacity: headerOpacity,
+        transition: 'opacity 180ms ease',
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <span style={{
@@ -63,7 +154,8 @@ function LayerSection({ layer, status, typeFilter }: { layer: number; status: St
             letterSpacing: '0.06em',
             lineHeight: '16px',
             textTransform: 'uppercase' as const,
-            color: meta.labelColor,
+            color: labelColor,
+            transition: 'color 180ms ease',
           }}>
             {meta.label}
           </span>
@@ -72,7 +164,8 @@ function LayerSection({ layer, status, typeFilter }: { layer: number; status: St
             fontSize: 12,
             fontWeight: 500,
             lineHeight: '16px',
-            color: meta.countColor,
+            color: countColor,
+            transition: 'color 180ms ease',
           }}>
             {count}
           </span>
@@ -81,7 +174,8 @@ function LayerSection({ layer, status, typeFilter }: { layer: number; status: St
           fontFamily: '"Inter", system-ui, sans-serif',
           fontSize: 12,
           lineHeight: '16px',
-          color: meta.descColor,
+          color: descColor,
+          transition: 'color 180ms ease',
         }}>
           {meta.description}
         </span>
@@ -96,7 +190,7 @@ function LayerSection({ layer, status, typeFilter }: { layer: number; status: St
         ) : (
           <>
             {visibleItems.map((item) => (
-              <ItemRow key={item.id} item={item} />
+              <ItemRow key={item.id} item={item} emphasized={active} />
             ))}
             {canExpand && (
               <>
@@ -156,7 +250,68 @@ function LayerSection({ layer, status, typeFilter }: { layer: number; status: St
 
 export default function FeedView({ status }: FeedViewProps) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [activeLayer, setActiveLayer] = useState(1);
   const totalItems = Object.values(status.itemCounts).reduce((a, b) => a + b, 0);
+  const sectionRefs = useRef<Record<number, HTMLDivElement | null>>({
+    1: null,
+    2: null,
+    3: null,
+    4: null,
+    5: null,
+  });
+
+  useEffect(() => {
+    setActiveLayer(1);
+  }, [typeFilter]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const updateActiveLayer = () => {
+      const focusLine = window.innerHeight * 0.32;
+      let nextLayer = 1;
+      let bestDistance = Number.POSITIVE_INFINITY;
+
+      for (const layer of [1, 2, 3, 4, 5] as const) {
+        const node = sectionRefs.current[layer];
+        if (!node) {
+          continue;
+        }
+
+        const rect = node.getBoundingClientRect();
+        if (rect.bottom <= 0) {
+          continue;
+        }
+
+        const topDistance = Math.abs(rect.top - focusLine);
+        const inFocusBand = rect.top <= focusLine && rect.bottom >= focusLine;
+
+        if (inFocusBand) {
+          nextLayer = layer;
+          bestDistance = -1;
+          break;
+        }
+
+        if (topDistance < bestDistance) {
+          bestDistance = topDistance;
+          nextLayer = layer;
+        }
+      }
+
+      setActiveLayer(nextLayer);
+    };
+
+    updateActiveLayer();
+    window.addEventListener('scroll', updateActiveLayer, { passive: true });
+    window.addEventListener('resize', updateActiveLayer);
+
+    return () => {
+      window.removeEventListener('scroll', updateActiveLayer);
+      window.removeEventListener('resize', updateActiveLayer);
+    };
+  }, [typeFilter, status.itemCounts]);
 
   return (
     <div>
@@ -187,7 +342,16 @@ export default function FeedView({ status }: FeedViewProps) {
       </div>
 
       {[1, 2, 3, 4, 5].map((layer) => (
-        <LayerSection key={layer} layer={layer} status={status} typeFilter={typeFilter} />
+        <LayerSection
+          key={layer}
+          layer={layer}
+          status={status}
+          typeFilter={typeFilter}
+          activeLayer={activeLayer}
+          sectionRef={(node) => {
+            sectionRefs.current[layer] = node;
+          }}
+        />
       ))}
 
       {/* Footer */}

@@ -4,11 +4,13 @@ Sift is a local-first GitHub inbox organizer for people who live in pull request
 
 GitHub notifications are good at collecting activity and weak at prioritizing it. Sift pulls your inbox and adjacent repo activity into a local SQLite database, classifies it with explicit rules, and gives you a browser UI to work through it by signal instead of by noise.
 
+Package name note: the npm package is `gh-sift` because `sift` is already taken on npm. The installed command is still `sift`.
+
 ## Layers
 
-- `Needs You`: review requests, assignments, and PRs on repos you own
-- `Your Circle`: activity from people you follow on repos you contribute to
-- `Your Repos`: collaborator activity on repos you maintain
+- `Needs You`: review requests, assignments, and your open work
+- `Your Circle`: maintainer activity on repos you own or contribute to
+- `Your Repos`: non-maintainer activity on repos you own
 - `Interesting`: mentions, high-engagement threads, and hotter starred-repo activity
 - `Everything Else`: background activity and lower-signal starred-repo activity
 
@@ -37,17 +39,28 @@ On Linux, secure token storage uses Secret Service when available. On Windows, i
 
 On Apple Silicon, use native `arm64` Node. If `node -p process.arch` prints `x64`, you are running under Rosetta and native modules like `better-sqlite3` may break.
 
-## Quick start
+## Install
 
 ```bash
-npm install
-npm run rebuild:native
-npm start
+npm install -g gh-sift
+sift
 ```
 
 Then open the local URL printed by the server, usually `http://127.0.0.1:4185`.
 
 If that port is busy, Sift will automatically move to the next available local port.
+
+The first sync can take a bit depending on your notification volume and repo graph.
+
+If you prefer not to install globally:
+
+```bash
+npx gh-sift
+```
+
+## Apple Silicon note
+
+Run `npm install -g gh-sift --build-from-source` only if you hit a `better-sqlite3` architecture mismatch after switching between native and Rosetta terminals.
 
 ## GitHub token
 
@@ -65,9 +78,14 @@ Sift stores the token in:
 
 If secure storage is unavailable, it falls back to the local config file in `~/.config/sift/config.json`.
 
-## Commands
+On Windows, config falls under `%APPDATA%\\Sift`.
+
+## Source development
 
 ```bash
+git clone https://github.com/vignesh07/sift.git
+cd sift
+npm install
 npm start
 npm run dev
 npm run dev:web
@@ -86,7 +104,7 @@ Included now:
 
 - local sync from GitHub notifications and search
 - layered prioritization UI
-- local full-text search
+- local full-text search across title, repo, author, and labels
 - periodic background sync
 - local SQLite persistence
 - secure token storage on macOS, Linux, and Windows when OS services are available

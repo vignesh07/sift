@@ -1,20 +1,62 @@
 {
-  "name": "sift",
+  "name": "gh-sift",
   "version": "0.1.0",
+  "description": "Local-first GitHub inbox organizer for maintainers and heavy contributors",
   "license": "MIT",
   "author": "Vignesh Natarajan",
-  "private": true,
+  "type": "module",
+  "bin": {
+    "sift": "./bin/sift.cjs"
+  },
+  "files": [
+    "bin/",
+    "packages/server/dist/",
+    "packages/web/dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vignesh07/sift.git"
+  },
+  "homepage": "https://github.com/vignesh07/sift#readme",
+  "bugs": {
+    "url": "https://github.com/vignesh07/sift/issues"
+  },
+  "keywords": [
+    "github",
+    "notifications",
+    "inbox",
+    "pull-requests",
+    "issues",
+    "sqlite"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "packages/server",
     "packages/web"
   ],
   "scripts": {
+    "build:server": "npm run build --workspace=packages/server",
+    "build:web": "npm run build --workspace=packages/web",
     "dev": "npm run dev --workspace=packages/server",
     "dev:web": "npm run dev --workspace=packages/web",
-    "build": "npm run build --workspace=packages/web",
-    "start": "npm run build && npm run start --workspace=packages/server",
+    "build": "npm run build:web && npm run build:server",
+    "start": "npm run build && node ./bin/sift.cjs",
     "rebuild:native": "npm rebuild better-sqlite3 --build-from-source",
+    "prepack": "npm run build",
+    "pack:check": "npm pack --dry-run",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@octokit/graphql": "^8.1.1",
+    "@octokit/rest": "^21.0.0",
+    "better-sqlite3": "^11.0.0",
+    "hono": "^4.6.0",
+    "open": "^10.1.0"
   }
 }

@@ -33,12 +33,10 @@ function makeItem(overrides: Partial<SearchItem & { notification_reason?: string
 function makeCtx(overrides: Partial<ClassificationContext> = {}): ClassificationContext {
   return {
     username: 'me',
-    following: new Set<string>(),
     starredRepos: new Set<string>(),
-    userRepos: new Set<string>(),
     ownedRepos: new Set<string>(),
     maintainerRepos: new Set<string>(),
-    maintainerRepoCollaborators: new Set<string>(),
+    maintainerRepoCollaborators: new Map<string, Set<string>>(),
     ...overrides,
   };
 }
@@ -66,11 +64,11 @@ describe('classify', () => {
       expect(result.reasons).toContain('assigned');
     });
 
-    it('classifies PR on owned repo', () => {
+    it('does NOT classify PR on owned repo as Layer 1', () => {
       const item = makeItem({ type: 'pr', repo_owner: 'me', repo_name: 'my-lib', author_login: 'alice' });
       const ctx = makeCtx({ ownedRepos: new Set(['me/my-lib']) });
       const result = classify(item, ctx);
-      expect(result.layer).toBe(1);
+      expect(result.layer).toBe(3);
       expect(result.reasons).toContain('pr_on_owned_repo');
     });
 
@@ -95,6 +93,21 @@ describe('classify', () => {
       expect(result.reasons).toContain('your_open_pr');
     });
 
+    it('classifies your open issue', () => {
+      const item = makeItem({ type: 'issue', author_login: 'me', state: 'open' });
+      const result = classify(item, makeCtx());
+      expect(result.layer).toBe(1);
+      expect(result.reasons).toContain('your_open_issue');
+    });
+
+    it('does NOT classify someone else opening an issue on your repo as Layer 1', () => {
+      const item = makeItem({ type: 'issue', repo_owner: 'me', repo_name: 'my-lib', author_login: 'alice' });
+      const ctx = makeCtx({ ownedRepos: new Set(['me/my-lib']) });
+      const result = classify(item, ctx);
+      expect(result.layer).toBe(3);
+      expect(result.reasons).toContain('issue_on_owned_repo');
+    });
+
     it('collects multiple Layer 1 reasons', () => {
       const item = makeItem({
         author_login: 'me',
@@ -115,44 +128,62 @@ describe('classify', () => {
   });
 
   describe('Layer 2 — Your Circle', () => {
-    it('classifies a followed author on a repo you contribute to', () => {
-      const item = makeItem({ author_login: 'alice', repo_owner: 'org', repo_name: 'repo' });
+    it('classifies maintainer activity on an owned repo', () => {
+      const item = makeItem({ author_login: 'alice', repo_owner: 'me', repo_name: 'repo' });
       const ctx = makeCtx({
-        following: new Set(['alice']),
-        userRepos: new Set(['org/repo']),
+        ownedRepos: new Set(['me/repo']),
+        maintainerRepos: new Set(['me/repo']),
+        maintainerRepoCollaborators: new Map([
+          ['me/repo', new Set(['alice'])],
+        ]),
       });
       const result = classify(item, ctx);
       expect(result.layer).toBe(2);
-      expect(result.reasons).toContain('author_followed');
+      expect(result.reasons).toContain('maintainer_on_owned_repo');
     });
 
-    it('does NOT classify a followed author outside your repos as Layer 2', () => {
+    it('classifies maintainers on contributing repos as Layer 2', () => {
       const item = makeItem({ author_login: 'alice', repo_owner: 'org', repo_name: 'repo' });
-      const ctx = makeCtx({ following: new Set(['alice']) });
+      const ctx = makeCtx({
+        maintainerRepos: new Set(['org/repo']),
+        maintainerRepoCollaborators: new Map([
+          ['org/repo', new Set(['alice'])],
+        ]),
+      });
+      const result = classify(item, ctx);
+      expect(result.layer).toBe(2);
+      expect(result.reasons).toContain('maintainer_on_contributing_repo');
+    });
+
+    it('does NOT classify a maintainer on an owned repo if they are only a maintainer elsewhere', () => {
+      const item = makeItem({ author_login: 'alice', repo_owner: 'me', repo_name: 'repo' });
+      const ctx = makeCtx({
+        ownedRepos: new Set(['me/repo']),
+        maintainerRepos: new Set(['me/repo', 'elsewhere/repo']),
+        maintainerRepoCollaborators: new Map([
+          ['elsewhere/repo', new Set(['alice'])],
+        ]),
+      });
       const result = classify(item, ctx);
       expect(result.layer).not.toBe(2);
     });
 
     it('does NOT classify your own activity as Layer 2', () => {
-      const item = makeItem({ author_login: 'me', repo_owner: 'org', repo_name: 'repo' });
+      const item = makeItem({ author_login: 'me', repo_owner: 'me', repo_name: 'repo' });
       const ctx = makeCtx({
-        following: new Set(['me']),
-        userRepos: new Set(['org/repo']),
+        ownedRepos: new Set(['me/repo']),
+        maintainerRepos: new Set(['me/repo']),
+        maintainerRepoCollaborators: new Map([
+          ['me/repo', new Set(['me'])],
+        ]),
       });
       const result = classify(item, ctx);
       expect(result.layer).not.toBe(2);
     });
 
-    it('does NOT classify contributor repo alone as Layer 2', () => {
-      const item = makeItem({ repo_owner: 'org', repo_name: 'repo' });
-      const ctx = makeCtx({ userRepos: new Set(['org/repo']) });
-      const result = classify(item, ctx);
-      expect(result.layer).not.toBe(2);
-    });
-
-    it('does NOT classify starred repos as Layer 2', () => {
-      const item = makeItem({ author_login: 'alice', repo_owner: 'org', repo_name: 'repo' });
-      const ctx = makeCtx({ starredRepos: new Set(['org/repo']), following: new Set(['alice']) });
+    it('does NOT classify owned repo activity without maintainer access as Layer 2', () => {
+      const item = makeItem({ author_login: 'alice', repo_owner: 'me', repo_name: 'repo' });
+      const ctx = makeCtx({ ownedRepos: new Set(['me/repo']) });
       const result = classify(item, ctx);
       expect(result.layer).not.toBe(2);
     });
@@ -163,8 +194,11 @@ describe('classify', () => {
         notification_reason: 'assign',
       });
       const ctx = makeCtx({
-        following: new Set(['alice']),
-        userRepos: new Set(['org/repo']),
+        ownedRepos: new Set(['me/repo']),
+        maintainerRepos: new Set(['me/repo']),
+        maintainerRepoCollaborators: new Map([
+          ['me/repo', new Set(['alice'])],
+        ]),
       });
       const result = classify(item, ctx);
       expect(result.layer).toBe(1);
@@ -172,37 +206,75 @@ describe('classify', () => {
   });
 
   describe('Layer 3 — Your Repos', () => {
-    it('classifies fellow maintainer activity on maintainer repo (issue)', () => {
+    it('classifies non-maintainer issue activity on owned repo', () => {
+      const item = makeItem({ type: 'issue', repo_owner: 'me', repo_name: 'project', author_login: 'bob' });
+      const ctx = makeCtx({
+        ownedRepos: new Set(['me/project']),
+      });
+      const result = classify(item, ctx);
+      expect(result.layer).toBe(3);
+      expect(result.reasons).toContain('issue_on_owned_repo');
+    });
+
+    it('classifies non-maintainer PR activity on owned repo', () => {
+      const item = makeItem({ type: 'pr', repo_owner: 'me', repo_name: 'project', author_login: 'bob' });
+      const ctx = makeCtx({
+        ownedRepos: new Set(['me/project']),
+      });
+      const result = classify(item, ctx);
+      expect(result.layer).toBe(3);
+      expect(result.reasons).toContain('pr_on_owned_repo');
+    });
+
+    it('does NOT classify maintainer activity on contributing repo as Layer 3', () => {
       const item = makeItem({ type: 'issue', repo_owner: 'org', repo_name: 'project', author_login: 'bob' });
       const ctx = makeCtx({
         maintainerRepos: new Set(['org/project']),
-        maintainerRepoCollaborators: new Set(['bob']),
+        maintainerRepoCollaborators: new Map([
+          ['org/project', new Set(['bob'])],
+        ]),
       });
       const result = classify(item, ctx);
-      expect(result.layer).toBe(3);
-      expect(result.reasons).toContain('maintainer_on_owned_repo');
+      expect(result.layer).not.toBe(3);
     });
 
-    it('classifies fellow maintainer PR on maintainer repo', () => {
-      // PRs on maintainer repos (not ADMIN-owned) should be Layer 3, not Layer 1
+    it('does NOT classify maintainer PR on contributing repo as Layer 3', () => {
       const item = makeItem({ type: 'pr', repo_owner: 'org', repo_name: 'project', author_login: 'bob' });
       const ctx = makeCtx({
         maintainerRepos: new Set(['org/project']),
-        maintainerRepoCollaborators: new Set(['bob']),
+        maintainerRepoCollaborators: new Map([
+          ['org/project', new Set(['bob'])],
+        ]),
       });
       const result = classify(item, ctx);
-      expect(result.layer).toBe(3);
+      expect(result.layer).not.toBe(3);
     });
 
-    it('PRs on ADMIN-owned repos hit Layer 1 first', () => {
+    it('maintainer PRs on owned repos stay in Layer 2', () => {
       const item = makeItem({ type: 'pr', repo_owner: 'me', repo_name: 'my-lib', author_login: 'bob' });
       const ctx = makeCtx({
         ownedRepos: new Set(['me/my-lib']),
         maintainerRepos: new Set(['me/my-lib']),
-        maintainerRepoCollaborators: new Set(['bob']),
+        maintainerRepoCollaborators: new Map([
+          ['me/my-lib', new Set(['bob'])],
+        ]),
       });
       const result = classify(item, ctx);
-      expect(result.layer).toBe(1);
+      expect(result.layer).toBe(2);
+      expect(result.reasons).toContain('maintainer_on_owned_repo');
+    });
+
+    it('non-maintainer PRs on owned repos move to Layer 3', () => {
+      const item = makeItem({ type: 'pr', repo_owner: 'me', repo_name: 'my-lib', author_login: 'bob' });
+      const ctx = makeCtx({
+        ownedRepos: new Set(['me/my-lib']),
+        maintainerRepos: new Set(['me/my-lib']),
+        maintainerRepoCollaborators: new Map([
+          ['me/my-lib', new Set(['carol'])],
+        ]),
+      });
+      const result = classify(item, ctx);
+      expect(result.layer).toBe(3);
       expect(result.reasons).toContain('pr_on_owned_repo');
     });
 
@@ -210,29 +282,34 @@ describe('classify', () => {
       const item = makeItem({ type: 'issue', repo_owner: 'org', repo_name: 'project', author_login: 'me' });
       const ctx = makeCtx({
         maintainerRepos: new Set(['org/project']),
-        maintainerRepoCollaborators: new Set(['me']),
+        maintainerRepoCollaborators: new Map([
+          ['org/project', new Set(['me'])],
+        ]),
       });
       const result = classify(item, ctx);
-      expect(result.reasons).not.toContain('maintainer_on_owned_repo');
+      expect(result.reasons).not.toContain('maintainer_on_contributing_repo');
     });
 
     it('does NOT classify activity on non-maintainer repo', () => {
       const item = makeItem({ type: 'issue', repo_owner: 'org', repo_name: 'other', author_login: 'bob' });
       const ctx = makeCtx({
         maintainerRepos: new Set(['org/project']),
-        maintainerRepoCollaborators: new Set(['bob']),
+        maintainerRepoCollaborators: new Map([
+          ['org/project', new Set(['bob'])],
+        ]),
       });
       const result = classify(item, ctx);
       expect(result.layer).not.toBe(3);
     });
 
-    it('Layer 2 trumps Layer 3 (followed author who is also a maintainer)', () => {
-      const item = makeItem({ type: 'issue', repo_owner: 'org', repo_name: 'project', author_login: 'bob' });
+    it('maintainer activity hits Layer 2 before Layer 3', () => {
+      const item = makeItem({ type: 'issue', repo_owner: 'me', repo_name: 'project', author_login: 'bob' });
       const ctx = makeCtx({
-        following: new Set(['bob']),
-        userRepos: new Set(['org/project']),
-        maintainerRepos: new Set(['org/project']),
-        maintainerRepoCollaborators: new Set(['bob']),
+        ownedRepos: new Set(['me/project']),
+        maintainerRepos: new Set(['me/project']),
+        maintainerRepoCollaborators: new Map([
+          ['me/project', new Set(['bob'])],
+        ]),
       });
       const result = classify(item, ctx);
       expect(result.layer).toBe(2);
@@ -291,12 +368,15 @@ describe('classify', () => {
       expect(result.layer).toBe(5);
     });
 
-    it('Layer 2 trumps Layer 4 (followed author on starred repo)', () => {
-      const item = makeItem({ author_login: 'alice', repo_owner: 'org', repo_name: 'repo' });
+    it('Layer 2 trumps Layer 4 (owned-repo maintainer on a starred repo)', () => {
+      const item = makeItem({ author_login: 'alice', repo_owner: 'me', repo_name: 'repo' });
       const ctx = makeCtx({
-        following: new Set(['alice']),
-        userRepos: new Set(['org/repo']),
-        starredRepos: new Set(['org/repo']),
+        ownedRepos: new Set(['me/repo']),
+        maintainerRepos: new Set(['me/repo']),
+        maintainerRepoCollaborators: new Map([
+          ['me/repo', new Set(['alice'])],
+        ]),
+        starredRepos: new Set(['me/repo']),
       });
       const result = classify(item, ctx);
       expect(result.layer).toBe(2);
