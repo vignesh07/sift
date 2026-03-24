@@ -93,7 +93,7 @@ export default function SetupScreen() {
             color: '#B5B5AD',
             marginTop: 4,
           }}>
-            Stored in the macOS Keychain when available, otherwise in your local Sift config.
+            Stored in your OS credential store when available. Falls back to local Sift config only when secure storage is unavailable.
           </p>
 
           {error && (

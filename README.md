@@ -20,6 +20,16 @@ GitHub notifications are good at collecting activity and weak at prioritizing it
 
 Semantic ranking and richer filtering can come later. The current goal is to make the non-AI baseline opinionated, useful, and trustworthy.
 
+## Platforms
+
+Sift is intended to run locally on:
+
+- macOS
+- Linux
+- Windows
+
+On Linux, secure token storage uses Secret Service when available. On Windows, it uses the Windows Credential Vault. On macOS, it uses Keychain. If no secure credential store is available, Sift falls back to local config storage.
+
 ## Requirements
 
 - Node.js 22+
@@ -47,7 +57,13 @@ Sift expects a GitHub personal access token with:
 - `read:user`
 - `repo`
 
-On macOS, Sift stores the token in Keychain when available. Otherwise it falls back to the local config file in `~/.config/sift/config.json`.
+Sift stores the token in:
+
+- macOS: Keychain
+- Linux: Secret Service
+- Windows: Credential Vault
+
+If secure storage is unavailable, it falls back to the local config file in `~/.config/sift/config.json`.
 
 ## Commands
 
@@ -73,6 +89,7 @@ Included now:
 - local full-text search
 - periodic background sync
 - local SQLite persistence
+- secure token storage on macOS, Linux, and Windows when OS services are available
 
 Not included yet:
 

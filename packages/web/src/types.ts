@@ -47,6 +47,6 @@ export interface SyncResult {
 export interface SetupResponse {
   success: boolean;
   username: string;
-  tokenStorage: 'keychain' | 'config';
+  tokenStorage: 'keychain' | 'secret-service' | 'credential-vault' | 'config';
   scopesVerified: boolean;
 }

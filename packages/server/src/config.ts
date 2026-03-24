@@ -45,13 +45,14 @@ function migrateLegacyToken(raw: StoredConfig): StoredConfig {
     return raw;
   }
 
-  if (!writeTokenToSecureStore(raw.token)) {
+  const secureStorage = writeTokenToSecureStore(raw.token);
+  if (!secureStorage) {
     return raw;
   }
 
   const migrated: StoredConfig = {
     username: raw.username,
-    tokenStorage: 'keychain',
+    tokenStorage: secureStorage,
   };
   writeStoredConfig(migrated);
   return migrated;
@@ -63,8 +64,8 @@ export function readConfig(): SiftConfig {
 
   return {
     username: raw.username,
-    token: secureToken ?? raw.token,
-    tokenStorage: secureToken ? 'keychain' : raw.token ? 'config' : raw.tokenStorage,
+    token: secureToken?.token ?? raw.token,
+    tokenStorage: secureToken?.storage ?? (raw.token ? 'config' : raw.tokenStorage),
   };
 }
 
@@ -82,8 +83,9 @@ export function writeConfig(config: SiftConfig): void {
 }
 
 export function storeToken(token: string): TokenStorage {
-  if (writeTokenToSecureStore(token)) {
-    return 'keychain';
+  const secureStorage = writeTokenToSecureStore(token);
+  if (secureStorage) {
+    return secureStorage;
   }
 
   return 'config';
