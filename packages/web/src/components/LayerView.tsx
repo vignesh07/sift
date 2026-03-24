@@ -8,8 +8,8 @@ const LAYER_DESCRIPTIONS: Record<number, string> = {
   1: 'Review requests, assignments, and activity on your repos',
   2: 'People you follow on repos you contribute to',
   3: 'Fellow maintainers active on repos you own',
-  4: 'Mentions, starred repos, high engagement',
-  5: 'No special signals',
+  4: 'Mentions, high engagement, and hotter starred repos',
+  5: 'Background activity and lower-signal starred repos',
 };
 
 interface LayerViewProps {

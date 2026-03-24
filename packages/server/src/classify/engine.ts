@@ -33,8 +33,8 @@ export interface ClassificationResult {
  *
  * Layer 4 — Interesting: worth a look
  *   - @mentions
- *   - On a starred repo
  *   - High engagement (comments, reactions, participants)
+ *   - Activity on a starred repo when paired with another Layer 4 signal
  *   - Prolific author in batch (applied in classifyBatch)
  *
  * Layer 5 — Everything Else
@@ -110,11 +110,13 @@ export function classify(
 
   // --- Layer 4: Interesting ---
 
+  const starredRepo = ctx.starredRepos.has(repoKey);
+
   if (item.notification_reason === 'mention') {
     reasons.push('mentioned');
   }
 
-  if (ctx.starredRepos.has(repoKey)) {
+  if (starredRepo) {
     reasons.push('starred_repo');
   }
 
@@ -130,11 +132,17 @@ export function classify(
     reasons.push('many_participants');
   }
 
-  if (reasons.length > 0) {
+  const strongLayer4Reasons = reasons.filter(reason => reason !== 'starred_repo');
+
+  if (strongLayer4Reasons.length > 0) {
     return { layer: 4, reasons };
   }
 
   // --- Layer 5 ---
+  if (starredRepo) {
+    return { layer: 5, reasons: ['starred_repo'] };
+  }
+
   return { layer: 5, reasons: ['no_special_signals'] };
 }
 

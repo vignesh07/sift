@@ -9,8 +9,8 @@ const LAYER_META: Record<number, { label: string; description: string; labelColo
   1: { label: 'Needs You', description: 'Review requests, assignments, your repos', labelColor: '#C2553A', countColor: '#C2553A', descColor: '#9F9F97', previewCount: 50 },
   2: { label: 'Your Circle', description: 'People you follow on repos you contribute to', labelColor: '#1B1B18', countColor: '#6B6B63', descColor: '#9F9F97', previewCount: 50 },
   3: { label: 'Your Repos', description: 'Fellow maintainers on repos you maintain', labelColor: '#1B1B18', countColor: '#6B6B63', descColor: '#9F9F97', previewCount: 50 },
-  4: { label: 'Interesting', description: 'Mentions, starred repos, high engagement', labelColor: '#9F9F97', countColor: '#B5B5AD', descColor: '#B5B5AD', previewCount: 3 },
-  5: { label: 'Everything Else', description: 'No special signals', labelColor: '#C8C8C0', countColor: '#D0D0C8', descColor: '#C8C8C0', previewCount: 3 },
+  4: { label: 'Interesting', description: 'Mentions, high engagement, hotter starred repos', labelColor: '#9F9F97', countColor: '#B5B5AD', descColor: '#B5B5AD', previewCount: 3 },
+  5: { label: 'Everything Else', description: 'Background activity and lower-signal starred repos', labelColor: '#C8C8C0', countColor: '#D0D0C8', descColor: '#C8C8C0', previewCount: 3 },
 };
 
 interface FeedViewProps {

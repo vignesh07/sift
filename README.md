@@ -2,105 +2,85 @@
 
 Sift is a local-first GitHub inbox organizer for people who live in pull requests and issues.
 
-Instead of a flat notification list, it classifies activity into layers:
+GitHub notifications are good at collecting activity and weak at prioritizing it. Sift pulls your inbox and adjacent repo activity into a local SQLite database, classifies it with explicit rules, and gives you a browser UI to work through it by signal instead of by noise.
+
+## Layers
 
 - `Needs You`: review requests, assignments, and PRs on repos you own
 - `Your Circle`: activity from people you follow on repos you contribute to
-- `Your Repos`: collaborators active on repos you maintain
-- `Interesting`: starred repos, mentions, and high-engagement threads
-- `Everything Else`: everything that did not hit a stronger signal
+- `Your Repos`: collaborator activity on repos you maintain
+- `Interesting`: mentions, high-engagement threads, and hotter starred-repo activity
+- `Everything Else`: background activity and lower-signal starred-repo activity
 
-## Why it exists
-
-GitHub notifications are good at collection and weak at prioritization. Sift pulls your inbox and adjacent activity into a local SQLite database, classifies it with explicit rules, and gives you a browser UI to work through the result.
-
-This repo is intentionally local-only right now:
+## Why local-first
 
 - your data stays on your machine
-- the UI is served from a local server
-- search runs against a local SQLite FTS index
+- search runs locally against SQLite FTS
+- setup is simple: one server, one browser UI, one GitHub token
 
-Semantic ranking and richer filters can be layered on top later. The current goal is to make the non-AI baseline trustworthy first.
+Semantic ranking and richer filtering can come later. The current goal is to make the non-AI baseline opinionated, useful, and trustworthy.
 
-## Quick start
-
-### Requirements
+## Requirements
 
 - Node.js 22+
 - npm
-- macOS Keychain if you want secure token storage without a fallback file
 
-### Install
+On Apple Silicon, use native `arm64` Node. If `node -p process.arch` prints `x64`, you are running under Rosetta and native modules like `better-sqlite3` may break.
+
+## Quick start
 
 ```bash
 npm install
-npm rebuild better-sqlite3
-```
-
-`better-sqlite3` is native. If dependencies were installed under the wrong architecture, rebuild it again.
-
-### Run
-
-```bash
+npm run rebuild:native
 npm start
 ```
 
-The app will:
+Then open the local URL printed by the server, usually `http://127.0.0.1:4185`.
 
-- build the web client
-- start the local server
-- open a browser tab unless you disable it
+If that port is busy, Sift will automatically move to the next available local port.
 
-### Development
+## GitHub token
 
-```bash
-npm run dev
-npm run dev:web
-```
-
-The server runs on `127.0.0.1` and the browser UI talks to `/api`.
-
-## Authentication
-
-Sift expects a GitHub personal access token that can read:
+Sift expects a GitHub personal access token with:
 
 - `notifications`
 - `read:user`
 - `repo`
 
-On macOS, Sift stores the token in Keychain when it can. If secure storage is unavailable, it falls back to the local config file under `~/.config/sift/config.json`.
-
-## Environment
-
-- `PORT` or `SIFT_PORT`: preferred port for the local server
-- `SIFT_OPEN_BROWSER=0`: do not auto-open the browser on startup
-
-If the preferred port is already in use, Sift will try the next available local port.
+On macOS, Sift stores the token in Keychain when available. Otherwise it falls back to the local config file in `~/.config/sift/config.json`.
 
 ## Commands
 
 ```bash
-npm test
+npm start
+npm run dev
+npm run dev:web
 npm run build
+npm test
 ```
+
+## Environment
+
+- `PORT` or `SIFT_PORT`: preferred local server port
+- `SIFT_OPEN_BROWSER=0`: do not auto-open a browser tab on startup
 
 ## Current scope
 
-What is in:
+Included now:
 
 - local sync from GitHub notifications and search
-- local SQLite persistence
 - layered prioritization UI
 - local full-text search
 - periodic background sync
+- local SQLite persistence
 
-What is not in yet:
+Not included yet:
 
 - semantic search or embeddings
-- advanced filtering and saved views
+- saved views and deeper filters
 - multi-account support
-- collaborative or hosted mode
+- hosted or collaborative mode
 
-## Before publishing
+## License
 
-This repo still needs an explicit `LICENSE` file before a public open-source release.
+[MIT](./LICENSE)

@@ -247,18 +247,27 @@ describe('classify', () => {
       expect(result.reasons).toContain('mentioned');
     });
 
-    it('classifies starred repos as Layer 4', () => {
+    it('does not classify plain starred repos as Layer 4', () => {
       const item = makeItem({ repo_owner: 'org', repo_name: 'repo' });
       const ctx = makeCtx({ starredRepos: new Set(['org/repo']) });
       const result = classify(item, ctx);
-      expect(result.layer).toBe(4);
-      expect(result.reasons).toContain('starred_repo');
+      expect(result.layer).toBe(5);
+      expect(result.reasons).toEqual(['starred_repo']);
     });
 
     it('classifies high comment count', () => {
       const item = makeItem({ comment_count: 15 });
       const result = classify(item, makeCtx());
       expect(result.layer).toBe(4);
+      expect(result.reasons).toContain('high_comments');
+    });
+
+    it('keeps starred repo items in Layer 4 when they also have engagement', () => {
+      const item = makeItem({ repo_owner: 'org', repo_name: 'repo', comment_count: 15 });
+      const ctx = makeCtx({ starredRepos: new Set(['org/repo']) });
+      const result = classify(item, ctx);
+      expect(result.layer).toBe(4);
+      expect(result.reasons).toContain('starred_repo');
       expect(result.reasons).toContain('high_comments');
     });
 
@@ -306,6 +315,14 @@ describe('classify', () => {
       const item = makeItem({ type: 'issue' });
       const result = classify(item, makeCtx());
       expect(result.layer).toBe(5);
+    });
+
+    it('keeps low-signal starred repo activity in Layer 5', () => {
+      const item = makeItem({ repo_owner: 'org', repo_name: 'repo' });
+      const ctx = makeCtx({ starredRepos: new Set(['org/repo']) });
+      const result = classify(item, ctx);
+      expect(result.layer).toBe(5);
+      expect(result.reasons).toEqual(['starred_repo']);
     });
   });
 });
