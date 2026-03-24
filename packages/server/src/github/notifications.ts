@@ -136,6 +136,36 @@ function toPullRequestSearchItem(repoOwner: string, repoName: string, data: any)
   };
 }
 
+export async function fetchItemByRepoNumber(
+  octokit: Octokit,
+  type: 'pr' | 'issue',
+  repoOwner: string,
+  repoName: string,
+  number: number,
+): Promise<SearchItem | null> {
+  if (type === 'pr') {
+    const { data } = await octokit.pulls.get({
+      owner: repoOwner,
+      repo: repoName,
+      pull_number: number,
+    });
+
+    return toPullRequestSearchItem(repoOwner, repoName, data);
+  }
+
+  const { data } = await octokit.issues.get({
+    owner: repoOwner,
+    repo: repoName,
+    issue_number: number,
+  });
+
+  if ('pull_request' in data) {
+    return null;
+  }
+
+  return toIssueSearchItem(repoOwner, repoName, data);
+}
+
 async function fetchNotificationSubjectItem(
   octokit: Octokit,
   notification: NotificationItem,
@@ -148,27 +178,13 @@ async function fetchNotificationSubjectItem(
     return null;
   }
 
-  if (notification.subject.type === 'PullRequest') {
-    const { data } = await octokit.pulls.get({
-      owner: notification.repository.owner,
-      repo: notification.repository.name,
-      pull_number: number,
-    });
-
-    return toPullRequestSearchItem(notification.repository.owner, notification.repository.name, data);
-  }
-
-  const { data } = await octokit.issues.get({
-    owner: notification.repository.owner,
-    repo: notification.repository.name,
-    issue_number: number,
-  });
-
-  if ('pull_request' in data) {
-    return null;
-  }
-
-  return toIssueSearchItem(notification.repository.owner, notification.repository.name, data);
+  return fetchItemByRepoNumber(
+    octokit,
+    notification.subject.type === 'PullRequest' ? 'pr' : 'issue',
+    notification.repository.owner,
+    notification.repository.name,
+    number,
+  );
 }
 
 export async function fetchNotificationSubjectItems(

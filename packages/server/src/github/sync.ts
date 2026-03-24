@@ -2,7 +2,13 @@ import type Database from 'better-sqlite3';
 import type { Octokit } from '@octokit/rest';
 import type { graphql } from '@octokit/graphql';
 import { fetchFollowing, fetchStarredRepos, fetchUserRepos, fetchRepoCollaborators } from './social.js';
-import { extractNumberFromUrl, fetchNotifications, fetchNotificationSubjectItems, type NotificationItem } from './notifications.js';
+import {
+  extractNumberFromUrl,
+  fetchItemByRepoNumber,
+  fetchNotifications,
+  fetchNotificationSubjectItems,
+  type NotificationItem,
+} from './notifications.js';
 import { searchGitHub, buildSearchQueries } from './search.js';
 import type { SearchItem } from './search.js';
 import { classify, classifyBatch, type ClassificationContext } from '../classify/engine.js';
@@ -100,6 +106,82 @@ function attachNotification(
   return true;
 }
 
+async function refreshStaleOpenItems(
+  octokit: Octokit,
+  rows: ItemRow[],
+  limit = 100,
+): Promise<SearchItem[]> {
+  const refreshed: SearchItem[] = [];
+  const candidates = rows.slice(0, limit);
+
+  for (let index = 0; index < candidates.length; index += 10) {
+    const batch = candidates.slice(index, index + 10);
+    const results = await Promise.all(
+      batch.map(async (row) => {
+        try {
+          return await fetchItemByRepoNumber(
+            octokit,
+            row.type as 'pr' | 'issue',
+            row.repo_owner,
+            row.repo_name,
+            row.number,
+          );
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    for (const item of results) {
+      if (item && item.state !== 'open') {
+        refreshed.push(item);
+      }
+    }
+  }
+
+  return refreshed;
+}
+
+async function refreshRecentOpenPullRequests(
+  octokit: Octokit,
+  items: SyncedItem[],
+  limit = 50,
+): Promise<SearchItem[]> {
+  const refreshed: SearchItem[] = [];
+  const candidates = items
+    .filter((item) => item.type === 'pr' && item.state === 'open')
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+    .slice(0, limit);
+
+  for (let index = 0; index < candidates.length; index += 10) {
+    const batch = candidates.slice(index, index + 10);
+    const results = await Promise.all(
+      batch.map(async (item) => {
+        try {
+          return await fetchItemByRepoNumber(
+            octokit,
+            'pr',
+            item.repo_owner,
+            item.repo_name,
+            item.number,
+          );
+        } catch {
+          return null;
+        }
+      }),
+    );
+
+    for (let i = 0; i < results.length; i += 1) {
+      const item = results[i];
+      if (item && item.state !== batch[i].state) {
+        refreshed.push(item);
+      }
+    }
+  }
+
+  return refreshed;
+}
+
 export async function runSync(
   db: Database.Database,
   octokit: Octokit,
@@ -113,6 +195,7 @@ export async function runSync(
   syncInProgress = true;
   const errors: string[] = [];
   let socialRefreshed = false;
+  const syncStartedAt = new Date().toISOString();
 
   try {
     // 1. Refresh social graph if stale (> 1 hour)
@@ -203,6 +286,28 @@ export async function runSync(
       }
     }
 
+    // GitHub search can briefly lag after a PR closes or merges. Revalidate a
+    // recent slice of open PRs directly so the inbox does not keep stale opens.
+    const recentlyUpdatedPullRequests = await refreshRecentOpenPullRequests(
+      octokit,
+      Array.from(itemMap.values()),
+    );
+    for (const item of recentlyUpdatedPullRequests) {
+      addItem(itemMap, itemIndex, item);
+    }
+
+    // Open items that disappeared from the current sync corpus may have been
+    // closed or merged. Refresh a recent slice so stale "open" rows drop out.
+    const staleOpenCandidates = queryItems(db, { state: 'open', limit: 500 }).items.filter(
+      (row) => !itemMap.has(row.id),
+    );
+    if (staleOpenCandidates.length > 0) {
+      const refreshedClosedItems = await refreshStaleOpenItems(octokit, staleOpenCandidates);
+      for (const item of refreshedClosedItems) {
+        addItem(itemMap, itemIndex, item);
+      }
+    }
+
     // 5. Classify all items
     const items = Array.from(itemMap.values());
     const classifications = classifyBatch(items, ctx);
@@ -252,6 +357,7 @@ export async function runSync(
     reclassifyAll(db, ctx);
 
     // 9. Update sync state
+    setSyncState(db, 'last_sync_started', syncStartedAt);
     setSyncState(db, 'last_notification_sync', new Date().toISOString());
     setSyncState(db, 'last_sync', new Date().toISOString());
 

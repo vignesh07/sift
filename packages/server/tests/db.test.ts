@@ -116,6 +116,19 @@ describe('items', () => {
     expect(result.items[0].id).toBe('n1');
   });
 
+  it('filters by sync recency', () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1' }),
+      makeRow({ id: 'n2' }),
+    ]);
+    db.prepare("UPDATE items SET synced_at = '2024-01-01 00:00:00' WHERE id = 'n1'").run();
+    db.prepare("UPDATE items SET synced_at = '2024-01-03 00:00:00' WHERE id = 'n2'").run();
+
+    const result = queryItems(db, { syncedSince: '2024-01-02T00:00:00Z' });
+    expect(result.total).toBe(1);
+    expect(result.items[0].id).toBe('n2');
+  });
+
   it('paginates', () => {
     const items = Array.from({ length: 10 }, (_, i) =>
       makeRow({ id: `n${i}`, updated_at: `2024-01-${String(i + 1).padStart(2, '0')}T00:00:00Z` })
@@ -192,6 +205,19 @@ describe('FTS search', () => {
     expect(result.items.length).toBe(1);
     expect(result.total).toBe(2);
   });
+
+  it('filters search by sync recency', () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', title: 'parser bug one' }),
+      makeRow({ id: 'n2', title: 'parser bug two' }),
+    ]);
+    db.prepare("UPDATE items SET synced_at = '2024-01-01 00:00:00' WHERE id = 'n1'").run();
+    db.prepare("UPDATE items SET synced_at = '2024-01-03 00:00:00' WHERE id = 'n2'").run();
+
+    const result = searchItems(db, 'parser', { syncedSince: '2024-01-02T00:00:00Z' });
+    expect(result.items.length).toBe(1);
+    expect(result.items[0].id).toBe('n2');
+  });
 });
 
 describe('buildFtsQuery', () => {
@@ -214,6 +240,29 @@ describe('item counts', () => {
     ]);
     const counts = getItemCounts(db);
     expect(counts).toEqual({ 1: 2, 2: 1, 3: 0, 4: 1, 5: 0 });
+  });
+
+  it('can count only open items', () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', layer: 1, state: 'open' }),
+      makeRow({ id: 'n2', layer: 1, state: 'closed' }),
+      makeRow({ id: 'n3', layer: 2, state: 'open' }),
+      makeRow({ id: 'n4', layer: 4, state: 'merged' }),
+    ]);
+    const counts = getItemCounts(db, { state: 'open' });
+    expect(counts).toEqual({ 1: 1, 2: 1, 3: 0, 4: 0, 5: 0 });
+  });
+
+  it('can count only recently synced items', () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', layer: 1 }),
+      makeRow({ id: 'n2', layer: 2 }),
+    ]);
+    db.prepare("UPDATE items SET synced_at = '2024-01-01 00:00:00' WHERE id = 'n1'").run();
+    db.prepare("UPDATE items SET synced_at = '2024-01-03 00:00:00' WHERE id = 'n2'").run();
+
+    const counts = getItemCounts(db, { syncedSince: '2024-01-02T00:00:00Z' });
+    expect(counts).toEqual({ 1: 0, 2: 1, 3: 0, 4: 0, 5: 0 });
   });
 });
 

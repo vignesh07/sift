@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { triggerSync } from '../api';
 import type { StatusResponse } from '../types';
@@ -24,6 +25,7 @@ interface HeaderProps {
 
 export default function Header({ status, view, onViewChange, searchQuery, onSearchChange, searchOpen, onSearchOpenChange }: HeaderProps) {
   const queryClient = useQueryClient();
+  const [avatarFailed, setAvatarFailed] = useState(false);
   const sync = useMutation({
     mutationFn: triggerSync,
     onSuccess: () => {
@@ -35,6 +37,11 @@ export default function Header({ status, view, onViewChange, searchQuery, onSear
 
   const syncing = status.syncInProgress || sync.isPending;
   const lastSync = status.lastSync ? formatRelative(status.lastSync) : 'never';
+  const avatarUrl = status.user ? `https://github.com/${status.user}.png?size=64` : null;
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [status.user]);
 
   return (
     <header
@@ -231,7 +238,23 @@ export default function Header({ status, view, onViewChange, searchQuery, onSear
         {/* User */}
         {status.user && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#E8E7E3', flexShrink: 0 }} />
+            {avatarUrl && !avatarFailed ? (
+              <img
+                src={avatarUrl}
+                alt={`${status.user} avatar`}
+                onError={() => setAvatarFailed(true)}
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  flexShrink: 0,
+                  backgroundColor: '#E8E7E3',
+                }}
+              />
+            ) : (
+              <div style={{ width: 24, height: 24, borderRadius: '50%', backgroundColor: '#E8E7E3', flexShrink: 0 }} />
+            )}
             <span style={{ fontFamily: '"Inter", system-ui, sans-serif', fontSize: 13, fontWeight: 500, lineHeight: '16px', color: '#6B6B63' }}>
               {status.user}
             </span>

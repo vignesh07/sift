@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createDb } from '../src/db/connection.js';
 import { createApp } from '../src/app.js';
-import { upsertItems } from '../src/db/queries.js';
+import { setSyncState, upsertItems } from '../src/db/queries.js';
 import type Database from 'better-sqlite3';
 import type { Hono } from 'hono';
 
@@ -76,6 +76,30 @@ describe('GET /api/items', () => {
     expect(body.items[0].title).toBe('Fix bug');
   });
 
+  it('defaults to open items only', async () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', state: 'open' }),
+      makeRow({ id: 'n2', state: 'closed' }),
+    ]);
+    const { body } = await req('/api/items');
+    expect(body.total).toBe(1);
+    expect(body.items[0].id).toBe('n1');
+  });
+
+  it('only returns items seen in the latest sync', async () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', title: 'old item' }),
+      makeRow({ id: 'n2', title: 'fresh item' }),
+    ]);
+    db.prepare("UPDATE items SET synced_at = '2024-01-01 00:00:00' WHERE id = 'n1'").run();
+    db.prepare("UPDATE items SET synced_at = '2024-01-03 00:00:00' WHERE id = 'n2'").run();
+    setSyncState(db, 'last_sync_started', '2024-01-02T00:00:00Z');
+
+    const { body } = await req('/api/items?state=all');
+    expect(body.total).toBe(1);
+    expect(body.items[0].id).toBe('n2');
+  });
+
   it('filters by layer', async () => {
     upsertItems(db, [
       makeRow({ id: 'n1', layer: 1 }),
@@ -92,6 +116,15 @@ describe('GET /api/items', () => {
     const { body } = await req('/api/items?limit=2&page=1');
     expect(body.items.length).toBe(2);
     expect(body.total).toBe(5);
+  });
+
+  it('can include all states explicitly', async () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', state: 'open' }),
+      makeRow({ id: 'n2', state: 'closed' }),
+    ]);
+    const { body } = await req('/api/items?state=all');
+    expect(body.total).toBe(2);
   });
 });
 
@@ -111,6 +144,20 @@ describe('GET /api/items/search', () => {
     expect(body.items[0].id).toBe('n1');
   });
 
+  it('search only includes items from the latest sync', async () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', title: 'Memory leak fix old' }),
+      makeRow({ id: 'n2', title: 'Memory leak fix fresh' }),
+    ]);
+    db.prepare("UPDATE items SET synced_at = '2024-01-01 00:00:00' WHERE id = 'n1'").run();
+    db.prepare("UPDATE items SET synced_at = '2024-01-03 00:00:00' WHERE id = 'n2'").run();
+    setSyncState(db, 'last_sync_started', '2024-01-02T00:00:00Z');
+
+    const { body } = await req('/api/items/search?q=memory');
+    expect(body.items.length).toBe(1);
+    expect(body.items[0].id).toBe('n2');
+  });
+
   it('does not error on punctuation-heavy queries', async () => {
     upsertItems(db, [
       makeRow({ id: 'n1', title: 'foo bar' }),
@@ -123,17 +170,32 @@ describe('GET /api/items/search', () => {
 });
 
 describe('GET /api/feed', () => {
-  it('returns all items sorted by updated_at', async () => {
+  it('returns open items sorted by updated_at', async () => {
     upsertItems(db, [
       makeRow({ id: 'n1', layer: 1, updated_at: '2024-01-01T00:00:00Z' }),
       makeRow({ id: 'n2', layer: 3, updated_at: '2024-01-03T00:00:00Z' }),
       makeRow({ id: 'n3', layer: 2, updated_at: '2024-01-02T00:00:00Z' }),
+      makeRow({ id: 'n4', layer: 4, state: 'closed', updated_at: '2024-01-04T00:00:00Z' }),
     ]);
     const { body } = await req('/api/feed');
     expect(body.total).toBe(3);
     expect(body.items[0].id).toBe('n2');
     expect(body.items[1].id).toBe('n3');
     expect(body.items[2].id).toBe('n1');
+  });
+
+  it('feed only includes items from the latest sync', async () => {
+    upsertItems(db, [
+      makeRow({ id: 'n1', updated_at: '2024-01-01T00:00:00Z' }),
+      makeRow({ id: 'n2', updated_at: '2024-01-02T00:00:00Z' }),
+    ]);
+    db.prepare("UPDATE items SET synced_at = '2024-01-01 00:00:00' WHERE id = 'n1'").run();
+    db.prepare("UPDATE items SET synced_at = '2024-01-03 00:00:00' WHERE id = 'n2'").run();
+    setSyncState(db, 'last_sync_started', '2024-01-02T00:00:00Z');
+
+    const { body } = await req('/api/feed?state=all');
+    expect(body.total).toBe(1);
+    expect(body.items[0].id).toBe('n2');
   });
 });
 

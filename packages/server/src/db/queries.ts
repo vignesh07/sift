@@ -33,6 +33,7 @@ export interface ItemFilter {
   layer?: number;
   type?: 'pr' | 'issue';
   state?: 'open' | 'closed' | 'merged';
+  syncedSince?: string;
   sort?: 'updated_at' | 'created_at' | 'comment_count' | 'reaction_count';
   order?: 'asc' | 'desc';
   page?: number;
@@ -93,6 +94,7 @@ export function queryItems(db: Database.Database, filter: ItemFilter = {}): { it
     layer,
     type,
     state,
+    syncedSince,
     sort = 'updated_at',
     order = 'desc',
     page = 1,
@@ -113,6 +115,10 @@ export function queryItems(db: Database.Database, filter: ItemFilter = {}): { it
   if (state) {
     conditions.push('state = @state');
     params.state = state;
+  }
+  if (syncedSince) {
+    conditions.push('datetime(synced_at) >= datetime(@synced_since)');
+    params.synced_since = syncedSince;
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -139,8 +145,12 @@ export function buildFtsQuery(query: string): string | null {
   return tokens.map(token => `${token}*`).join(' ');
 }
 
-export function searchItems(db: Database.Database, query: string, filter: { layer?: number; limit?: number } = {}): { items: ItemRow[]; total: number } {
-  const { layer, limit = 50 } = filter;
+export function searchItems(
+  db: Database.Database,
+  query: string,
+  filter: { layer?: number; limit?: number; syncedSince?: string } = {},
+): { items: ItemRow[]; total: number } {
+  const { layer, limit = 50, syncedSince } = filter;
   const ftsQuery = buildFtsQuery(query);
 
   if (!ftsQuery) {
@@ -158,6 +168,10 @@ export function searchItems(db: Database.Database, query: string, filter: { laye
     fromClause += ' AND items.layer = @layer';
     params.layer = layer;
   }
+  if (syncedSince) {
+    fromClause += ' AND datetime(items.synced_at) >= datetime(@synced_since)';
+    params.synced_since = syncedSince;
+  }
 
   const total = (db.prepare(`SELECT COUNT(*) as count ${fromClause}`).get(params) as { count: number }).count;
   const sql = `SELECT items.* ${fromClause} ORDER BY rank LIMIT @limit`;
@@ -166,8 +180,27 @@ export function searchItems(db: Database.Database, query: string, filter: { laye
   return { items, total };
 }
 
-export function getItemCounts(db: Database.Database): Record<number, number> {
-  const rows = db.prepare('SELECT layer, COUNT(*) as count FROM items GROUP BY layer').all() as { layer: number; count: number }[];
+export function getItemCounts(
+  db: Database.Database,
+  filter: { state?: 'open' | 'closed' | 'merged'; syncedSince?: string } = {},
+): Record<number, number> {
+  const conditions: string[] = [];
+  const params: Record<string, unknown> = {};
+
+  if (filter.state) {
+    conditions.push('state = @state');
+    params.state = filter.state;
+  }
+  if (filter.syncedSince) {
+    conditions.push('datetime(synced_at) >= datetime(@synced_since)');
+    params.synced_since = filter.syncedSince;
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const rows = db.prepare(`SELECT layer, COUNT(*) as count FROM items ${where} GROUP BY layer`).all(params) as {
+    layer: number;
+    count: number;
+  }[];
   const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   for (const row of rows) {
     counts[row.layer] = row.count;
