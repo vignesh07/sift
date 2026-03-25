@@ -4,7 +4,7 @@ Sift is a local-first GitHub inbox organizer for people who live in pull request
 
 GitHub notifications are good at collecting activity and weak at prioritizing it. Sift pulls your inbox and adjacent repo activity into a local SQLite database, classifies it with explicit rules, and gives you a browser UI to work through it by signal instead of by noise.
 
-Package name note: the npm package is `gh-sift` because `sift` is already taken on npm. The installed command is still `sift`.
+Package name note: the npm package is `gh-sift`
 
 ## Layers
 
@@ -13,6 +13,15 @@ Package name note: the npm package is `gh-sift` because `sift` is already taken 
 - `Your Repos`: non-maintainer activity on repos you own
 - `Interesting`: mentions, high-engagement threads, and hotter starred-repo activity
 - `Everything Else`: background activity and lower-signal starred-repo activity
+
+### Tab view
+
+<img width="2930" height="1610" alt="image" src="https://github.com/user-attachments/assets/a5c6d368-fdb7-402a-b41c-4bd6f39a9cb1" />
+
+### Feed view
+
+<img width="3004" height="1504" alt="image" src="https://github.com/user-attachments/assets/39366e10-8e05-4afa-ad1f-79b22dc27488" />
+
 
 ## Why local-first
 
